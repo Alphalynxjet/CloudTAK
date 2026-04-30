@@ -28,8 +28,34 @@ test('GET: api/profile/chatroom', async () => {
     }
 });
 
+test('Streaming: Dedicated WebSocket Port', async () => {
+    const url = new URL(`ws://localhost:4999/api`);
+    url.searchParams.append('format', 'geojson');
+    url.searchParams.append('connection', 'admin@example.com');
+    url.searchParams.append('token', flight.token.admin);
+
+    const conn = new ws(url);
+
+    await new Promise<void>((resolve, reject) => {
+        conn.on('error', (err) => {
+            reject(err);
+        }).on('message', async (data) => {
+            try {
+                const res = JSON.parse(String(data));
+
+                assert.equal(res.type, 'connected');
+
+                conn.close();
+                resolve();
+            } catch (err) {
+                reject(err);
+            }
+        })
+    });
+});
+
 test('Streaming: TAK Chat Message', async () => {
-    const url = new URL(`ws://localhost:5001`);
+    const url = new URL(`ws://localhost:5001/api`);
     url.searchParams.append('format', 'geojson');
     url.searchParams.append('connection', 'admin@example.com');
     url.searchParams.append('token', flight.token.admin);

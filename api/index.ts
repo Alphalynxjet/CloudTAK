@@ -1,5 +1,7 @@
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
+import type { Duplex } from 'node:stream';
 import { parseArgs } from 'node:util';
 import cors from 'cors';
 import express from 'express';
@@ -44,6 +46,17 @@ const { values: args } = parseArgs({
 }) as { values: CliArgs };
 
 const pkg = JSON.parse(String(fs.readFileSync(new URL('./package.json', import.meta.url))));
+const websocketPort = Number(process.env.CLOUDTAK_WEBSOCKET_PORT || 4999);
+
+function isWebSocketEndpoint(url: string | undefined): boolean {
+    if (!url) return false;
+
+    try {
+        return new URL(url, 'http://localhost').pathname === '/api';
+    } catch {
+        return false;
+    }
+}
 
 process.on('uncaughtExceptionMonitor', (exception, origin) => {
     console.trace('FATAL', exception, origin);
@@ -288,6 +301,29 @@ export default async function server(config: Config): Promise<ServerManager> {
         }
     });
 
+    const websocketServer = http.createServer((req, res) => {
+        if (req.url === '/api') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ version: pkg.version }));
+        } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 404, message: 'Not Found' }));
+        }
+    });
+
+    const handleWebSocketUpgrade = (request: http.IncomingMessage, socket: Duplex, head: Buffer): void => {
+        if (!isWebSocketEndpoint(request.url)) {
+            socket.destroy();
+            return;
+        }
+
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+        });
+    };
+
+    websocketServer.on('upgrade', handleWebSocketUpgrade);
+
     return new Promise((resolve) => {
         const srv = app.listen(5001, () => {
             if (!config.silent) {
@@ -298,15 +334,15 @@ export default async function server(config: Config): Promise<ServerManager> {
                 }
             }
 
-            const sm = new ServerManager(srv, wss, config);
-            return resolve(sm);
-        });
+            websocketServer.listen(websocketPort, () => {
+                if (!config.silent) console.log(`ok - websocket server listening on ${websocketPort}`);
 
-        srv.on('upgrade', (request, socket, head) => {
-            wss.handleUpgrade(request, socket, head, (ws) => {
-                wss.emit('connection', ws, request);
+                const sm = new ServerManager(srv, wss, config, websocketServer);
+                return resolve(sm);
             });
         });
+
+        srv.on('upgrade', handleWebSocketUpgrade);
 
         srv.on('close', async () => {
             await config.geofence.close();

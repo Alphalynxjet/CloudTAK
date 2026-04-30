@@ -32,6 +32,10 @@ export function stdurl(url: string | URL): URL {
         }
     }
 
+    if (url.pathname === '/api' && ['localhost', '127.0.0.1'].includes(url.hostname)) {
+        url.port = '4999';
+    }
+
     return url;
 }
 
