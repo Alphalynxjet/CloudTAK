@@ -29,7 +29,7 @@ test('GET: api/profile/chatroom', async () => {
 });
 
 test('Streaming: Dedicated WebSocket Port', async () => {
-    const url = new URL(`ws://localhost:4999/api`);
+    const url = new URL(`ws://localhost:4999`);
     url.searchParams.append('format', 'geojson');
     url.searchParams.append('connection', 'admin@example.com');
     url.searchParams.append('token', flight.token.admin);
@@ -55,7 +55,7 @@ test('Streaming: Dedicated WebSocket Port', async () => {
 });
 
 test('Streaming: TAK Chat Message', async () => {
-    const url = new URL(`ws://localhost:5001/api`);
+    const url = new URL(`ws://localhost:5001`);
     url.searchParams.append('format', 'geojson');
     url.searchParams.append('connection', 'admin@example.com');
     url.searchParams.append('token', flight.token.admin);

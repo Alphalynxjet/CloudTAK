@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import type { Duplex } from 'node:stream';
 import { parseArgs } from 'node:util';
 import cors from 'cors';
 import express from 'express';
@@ -47,16 +46,6 @@ const { values: args } = parseArgs({
 
 const pkg = JSON.parse(String(fs.readFileSync(new URL('./package.json', import.meta.url))));
 const websocketPort = Number(process.env.CLOUDTAK_WEBSOCKET_PORT || 4999);
-
-function isWebSocketEndpoint(url: string | undefined): boolean {
-    if (!url) return false;
-
-    try {
-        return new URL(url, 'http://localhost').pathname === '/api';
-    } catch {
-        return false;
-    }
-}
 
 process.on('uncaughtExceptionMonitor', (exception, origin) => {
     console.trace('FATAL', exception, origin);
@@ -311,12 +300,7 @@ export default async function server(config: Config): Promise<ServerManager> {
         }
     });
 
-    const handleWebSocketUpgrade = (request: http.IncomingMessage, socket: Duplex, head: Buffer): void => {
-        if (!isWebSocketEndpoint(request.url)) {
-            socket.destroy();
-            return;
-        }
-
+    const handleWebSocketUpgrade = (request: http.IncomingMessage, socket: Parameters<typeof wss.handleUpgrade>[1], head: Buffer): void => {
         wss.handleUpgrade(request, socket, head, (ws) => {
             wss.emit('connection', ws, request);
         });

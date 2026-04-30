@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { stdurl } from './std.ts';
 
-test('stdurl uses the dedicated local WebSocket port for /api', () => {
+test('stdurl keeps local WebSocket traffic on the current origin', () => {
     const url = stdurl('/api');
 
     assert.equal(url.hostname, 'localhost');
-    assert.equal(url.port, '4999');
+    assert.equal(url.port, '8080');
     assert.equal(url.pathname, '/api');
 });
 

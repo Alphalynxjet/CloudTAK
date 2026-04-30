@@ -175,8 +175,8 @@ export default {
                 ListenerArn: cf.ref('HttpsListener'),
                 Priority: 10,
                 Conditions: [{
-                    Field: 'path-pattern',
-                    Values: ['/api']
+                    Field: 'host-header',
+                    Values: [cf.join(['ws.map.', cf.importValue(cf.join(['tak-vpc-', cf.ref('Environment'), '-hosted-zone-name']))])]
                 }],
                 Actions: [{
                     Type: 'forward',
