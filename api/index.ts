@@ -45,7 +45,6 @@ const { values: args } = parseArgs({
 }) as { values: CliArgs };
 
 const pkg = JSON.parse(String(fs.readFileSync(new URL('./package.json', import.meta.url))));
-const websocketPort = Number(process.env.CLOUDTAK_WEBSOCKET_PORT || 4999);
 
 process.on('uncaughtExceptionMonitor', (exception, origin) => {
     console.trace('FATAL', exception, origin);
@@ -88,6 +87,8 @@ export default async function server(config: Config): Promise<ServerManager> {
     await config.conns.init();
 
     if (!config.noevents) await config.events.init(config.pg);
+
+    const websocketPort = Number(process.env.CLOUDTAK_WEBSOCKET_PORT || 4999);
 
     const app = express();
 
@@ -308,8 +309,35 @@ export default async function server(config: Config): Promise<ServerManager> {
 
     websocketServer.on('upgrade', handleWebSocketUpgrade);
 
-    return new Promise((resolve) => {
-        const srv = app.listen(5001, () => {
+    return new Promise((resolve, reject) => {
+        let srvListening = false;
+        let settled = false;
+
+        const srv = app.listen(5001);
+
+        const rejectStartup = (err: Error): void => {
+            if (settled) return;
+
+            settled = true;
+            srv.off('error', rejectStartup);
+            websocketServer.off('error', rejectStartup);
+
+            if (srvListening) {
+                srv.close(() => {
+                    reject(err);
+                });
+                return;
+            }
+
+            reject(err);
+        };
+
+        srv.once('error', rejectStartup);
+        websocketServer.once('error', rejectStartup);
+
+        srv.once('listening', () => {
+            srvListening = true;
+
             if (!config.silent) {
                 if (process.env.CLOUDTAK_Mode === 'docker-compose') {
                     console.log('ok - http://localhost:5000');
@@ -318,12 +346,20 @@ export default async function server(config: Config): Promise<ServerManager> {
                 }
             }
 
-            websocketServer.listen(websocketPort, () => {
-                if (!config.silent) console.log(`ok - websocket server listening on ${websocketPort}`);
+            websocketServer.listen(websocketPort);
+        });
 
-                const sm = new ServerManager(srv, wss, config, websocketServer);
-                return resolve(sm);
-            });
+        websocketServer.once('listening', () => {
+            if (settled) return;
+
+            settled = true;
+            srv.off('error', rejectStartup);
+            websocketServer.off('error', rejectStartup);
+
+            if (!config.silent) console.log(`ok - websocket server listening on ${websocketPort}`);
+
+            const sm = new ServerManager(srv, wss, config, websocketServer);
+            return resolve(sm);
         });
 
         srv.on('upgrade', handleWebSocketUpgrade);

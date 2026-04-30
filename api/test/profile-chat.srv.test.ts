@@ -5,6 +5,7 @@ import Flight from './flight.js';
 import { DirectChat } from '@tak-ps/node-cot'
 
 const flight = new Flight();
+const websocketPort = Number(process.env.CLOUDTAK_WEBSOCKET_PORT || 4999);
 
 flight.init({ takserver: true });
 flight.takeoff();
@@ -29,7 +30,7 @@ test('GET: api/profile/chatroom', async () => {
 });
 
 test('Streaming: Dedicated WebSocket Port', async () => {
-    const url = new URL(`ws://localhost:4999`);
+    const url = new URL(`ws://localhost:${websocketPort}`);
     url.searchParams.append('format', 'geojson');
     url.searchParams.append('connection', 'admin@example.com');
     url.searchParams.append('token', flight.token.admin);
