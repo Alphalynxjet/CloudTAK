@@ -542,6 +542,59 @@ export default async function router(schema: Schema, config: Config) {
         }
     });
 
+    await schema.get('/video/recordings', {
+        name: 'List All Recordings',
+        group: 'VideoLease',
+        description: 'List all recordings across all leases, with lease metadata',
+        res: Type.Object({
+            total_segments: Type.Integer(),
+            items: Type.Array(Type.Object({
+                path: Type.String(),
+                lease_id: Type.Union([Type.Integer(), Type.Null()]),
+                lease_name: Type.Union([Type.String(), Type.Null()]),
+                segments: Type.Array(Type.Object({ start: Type.String() }))
+            }))
+        })
+    }, async (req, res) => {
+        try {
+            const user = await Auth.as_user(config, req);
+
+            const allRecs = await videoControl.allRecordings();
+
+            const leaseList = await config.models.VideoLease.list({
+                limit: 1000,
+                page: 0,
+                order: 'desc',
+                sort: 'created',
+                where: user.access === AuthUserAccess.ADMIN
+                    ? undefined
+                    : undefined
+            });
+
+            const leaseByPath = new Map<string, { id: number, name: string }>();
+            for (const l of leaseList.items) {
+                leaseByPath.set(l.path, { id: l.id, name: l.name });
+            }
+
+            const items = allRecs.map(rec => {
+                const lease = leaseByPath.get(rec.path);
+                return {
+                    path: rec.path,
+                    lease_id: lease?.id ?? null,
+                    lease_name: lease?.name ?? null,
+                    segments: rec.segments
+                };
+            });
+
+            res.json({
+                total_segments: items.reduce((sum, r) => sum + r.segments.length, 0),
+                items
+            });
+        } catch (err) {
+            Err.respond(err, res);
+        }
+    });
+
     await schema.get('/video/paths', {
         name: 'List Media Paths',
         group: 'VideoLease',

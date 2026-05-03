@@ -852,7 +852,9 @@ export default class VideoServiceControl {
 
         const headers = this.headers(video.token);
 
-        const url = new URL(`/${path}`, video.url);
+        // Port 9996 (mediamtx playback) is not proxied by nginx — use the internal
+        // Docker service name directly so the API container reaches it over the bridge network.
+        const url = new URL(`/${path}`, 'http://media');
         url.port = '9996';
         url.searchParams.set('start', start);
         url.searchParams.set('duration', '3600');
@@ -864,6 +866,28 @@ export default class VideoServiceControl {
 
         if (!res.ok) throw new Err(res.status, new Error(await res.text()), 'Media Server Error');
         return res;
+    }
+
+    async allRecordings(): Promise<Array<{ path: string, segments: Array<{ start: string }> }>> {
+        const video = await this.settings();
+        if (!video.configured) return [];
+
+        const headers = this.headers(video.token);
+        const url = new URL('/v3/recordings/list', video.url);
+        url.port = '9997';
+
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: Object.fromEntries(headers.entries()),
+        });
+
+        if (!res.ok) return [];
+
+        const body = await res.json() as { items?: Array<{ name: string, segments: Array<{ start: string }> }> };
+        return (body.items || []).map(item => ({
+            path: item.name,
+            segments: item.segments || []
+        }));
     }
 
     async delete(

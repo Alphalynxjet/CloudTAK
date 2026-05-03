@@ -24,6 +24,16 @@
                 />
             </TablerIconButton>
 
+            <TablerIconButton
+                title='All Recordings'
+                @click='showRecordingsPage = true'
+            >
+                <IconPlayerRecord
+                    :size='32'
+                    stroke='1'
+                />
+            </TablerIconButton>
+
             <template v-if='mode === "lease"'>
                 <TablerRefreshButton
                     :loading='loading.main'
@@ -281,11 +291,17 @@
         @close='lease = false'
         @refresh='fetchLeases'
     />
+
+    <VideoRecordingsPage
+        v-if='showRecordingsPage'
+        @close='showRecordingsPage = false'
+    />
 </template>
 
 <script setup lang='ts'>
 import MenuTemplate from '../util/MenuTemplate.vue';
 import VideoLeaseModal from './Videos/VideoLeaseModal.vue';
+import VideoRecordingsPage from './Videos/VideoRecordingsPage.vue';
 import EmptyInfo from '../util/EmptyInfo.vue';
 import StandardItem from '../util/StandardItem.vue';
 import { server, std } from '../../../std.ts';
@@ -312,6 +328,7 @@ import {
     IconPencil,
     IconServer2,
     IconVideoPlus,
+    IconPlayerRecord,
     IconCar,
     IconWalk,
     IconDrone,
@@ -342,6 +359,7 @@ const loading = ref({
     leases: true
 });
 const lease = ref();
+const showRecordingsPage = ref(false);
 const isSystemAdmin = ref(false);
 const leases = ref<{ total: number, items: VideoLease[] }>({ total: 0, items: [] });
 const connections = ref<VideoConnectionList>({ videoConnections: [] });
