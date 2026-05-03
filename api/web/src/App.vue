@@ -151,7 +151,6 @@ import {
     IconUser,
     IconNetwork,
     IconSettings,
-    IconRefresh,
 } from '@tabler/icons-vue';
 import { StatusBar } from '@capacitor/status-bar';
 import Loading from './components/Loading.vue';
@@ -178,19 +177,6 @@ const loginName = ref<string>();
 const updateAvailable = ref(false);
 const pendingRegistration = ref<ServiceWorkerRegistration | null>(null);
 
-const applyUpdate = () => {
-    const waiting = pendingRegistration.value?.waiting;
-    if (waiting) {
-        // Tell service-worker.ts that THIS tab initiated the update, so its
-        // controllerchange handler auto-reloads us. Other tabs will see the
-        // same controllerchange, not find this flag, and surface their own
-        // prompt instead of silently reloading.
-        markUpdateRequestedByThisTab();
-        waiting.postMessage('SKIP_WAITING');
-    } else {
-        window.location.reload();
-    }
-};
 
 const onSwUpdateAvailable = (e: Event) => {
     const detail = (e as CustomEvent).detail;
