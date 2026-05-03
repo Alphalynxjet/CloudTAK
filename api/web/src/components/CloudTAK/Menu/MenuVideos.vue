@@ -77,7 +77,7 @@
                     v-if='loading.connections'
                 />
                 <TablerNone
-                    v-else-if='!filteredVideos.size && !filteredConnections.length'
+                    v-else-if='!filteredVideos.size && !filteredConnections.length && !filteredActiveLeases.length'
                     label='No Video Connections'
                     :create='false'
                 />
@@ -97,11 +97,15 @@
                     >
                         <div
                             class='d-flex align-items-center justify-content-center rounded-circle bg-black bg-opacity-25'
-                            style='width: 3rem; height: 3rem; min-width: 3rem;'
+                            style='width: 3rem; height: 3rem; min-width: 3rem; position: relative;'
                         >
                             <IconVideo
                                 :size='24'
                                 stroke='1'
+                            />
+                            <span
+                                v-if='activePaths.has(connection.uuid)'
+                                style='position:absolute; bottom:2px; right:2px; width:10px; height:10px; border-radius:50%; background:#2fb344; border:2px solid #1a1a1a;'
                             />
                         </div>
 
@@ -113,6 +117,10 @@
                                     class='fst-italic text-secondary'
                                 >Unnamed</span>
                             </div>
+                            <div
+                                v-if='activePaths.has(connection.uuid)'
+                                class='text-success small'
+                            >Live</div>
                         </div>
 
                         <div class='d-flex btn-list ms-auto'>
@@ -125,6 +133,38 @@
                                     stroke='1'
                                 />
                             </TablerIconButton>
+                        </div>
+                    </StandardItem>
+
+                    <StandardItem
+                        v-for='activeLease in filteredActiveLeases'
+                        :key='activeLease.id'
+                        class='d-flex align-items-center gap-3 p-2 cursor-pointer'
+                        @click='lease = activeLease'
+                    >
+                        <div
+                            class='d-flex align-items-center justify-content-center rounded-circle bg-black bg-opacity-25'
+                            style='width: 3rem; height: 3rem; min-width: 3rem; position: relative;'
+                        >
+                            <component
+                                :is='getLeaseIcon(activeLease.source_type)'
+                                :size='24'
+                                stroke='1'
+                            />
+                            <span
+                                style='position:absolute; bottom:2px; right:2px; width:10px; height:10px; border-radius:50%; background:#2fb344; border:2px solid #1a1a1a;'
+                            />
+                        </div>
+
+                        <div class='d-flex flex-column'>
+                            <div class='fw-bold'>
+                                <span v-if='activeLease.name'>{{ activeLease.name }}</span>
+                                <span
+                                    v-else
+                                    class='fst-italic text-secondary'
+                                >Unnamed</span>
+                            </div>
+                            <div class='text-success small'>Live</div>
                         </div>
                     </StandardItem>
                     <StandardItem
@@ -248,7 +288,7 @@ import MenuTemplate from '../util/MenuTemplate.vue';
 import VideoLeaseModal from './Videos/VideoLeaseModal.vue';
 import EmptyInfo from '../util/EmptyInfo.vue';
 import StandardItem from '../util/StandardItem.vue';
-import { server } from '../../../std.ts';
+import { server, std } from '../../../std.ts';
 import COT from '../../../base/cot.ts';
 import ProfileConfig from '../../../base/profile.ts';
 import type { VideoLease, VideoConnectionList } from '../../../types.ts';
@@ -305,13 +345,27 @@ const lease = ref();
 const isSystemAdmin = ref(false);
 const leases = ref<{ total: number, items: VideoLease[] }>({ total: 0, items: [] });
 const connections = ref<VideoConnectionList>({ videoConnections: [] });
+const activePaths = ref<Set<string>>(new Set());
 const videos = ref<Set<COT>>(new Set())
 
-const filteredConnections = computed(() => {
-    if (!connectionFilter.value) return connections.value.videoConnections;
+const publishedUuids = computed(() => new Set(connections.value.videoConnections.map(c => c.uuid)));
 
-    return connections.value.videoConnections.filter((c) => {
-        return (c.alias || 'Unnamed').toLowerCase().includes(connectionFilter.value.toLowerCase());
+const filteredConnections = computed(() => {
+    const sorted = [...connections.value.videoConnections].sort((a, b) => {
+        const aLive = activePaths.value.has(a.uuid) ? 1 : 0;
+        const bLive = activePaths.value.has(b.uuid) ? 1 : 0;
+        return bLive - aLive;
+    });
+    if (!connectionFilter.value) return sorted;
+    return sorted.filter((c) => (c.alias || 'Unnamed').toLowerCase().includes(connectionFilter.value.toLowerCase()));
+});
+
+const filteredActiveLeases = computed(() => {
+    return leases.value.items.filter((l) => {
+        if (publishedUuids.value.has(l.path)) return false;
+        if (!activePaths.value.has(l.path)) return false;
+        if (connectionFilter.value && !(l.name || 'Unnamed').toLowerCase().includes(connectionFilter.value.toLowerCase())) return false;
+        return true;
     });
 });
 
@@ -397,9 +451,22 @@ async function fetchConnections(): Promise<void> {
         loading.value.connections = true;
         error.value = undefined;
 
-        const res = await server.GET('/api/marti/video');
-        if (res.error) throw new Error(res.error.message);
-        connections.value = res.data;
+        const [connectionsRes, pathsData, leasesRes] = await Promise.all([
+            server.GET('/api/marti/video'),
+            std('/api/video/paths').catch(() => ({ items: [] })) as Promise<{ items: { name: string, ready: boolean }[] }>,
+            server.GET('/api/video/lease', { params: { query: { limit: 200, page: 0, order: 'desc', sort: 'created', expired: 'false', ephemeral: 'false' } } })
+        ]);
+
+        if (connectionsRes.error) throw new Error(connectionsRes.error.message);
+        connections.value = connectionsRes.data;
+
+        activePaths.value = new Set(
+            (pathsData.items || []).filter(p => p.ready).map(p => p.name)
+        );
+
+        if (!leasesRes.error) {
+            leases.value = leasesRes.data;
+        }
     } catch (err) {
         error.value = err instanceof Error ? err : new Error(String(err));
     }

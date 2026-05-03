@@ -765,6 +765,26 @@ export default class VideoServiceControl {
     /**
      * Fetch Path Information from Media Server
      */
+    async pathsList(): Promise<Static<typeof PathsList>> {
+        const video = await this.settings();
+        if (!video.configured) return { pageCount: 0, itemCount: 0, items: [] };
+
+        const headers = this.headers(video.token);
+        const url = new URL('/path', video.url);
+        url.port = '9997';
+
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: Object.fromEntries(headers.entries()),
+        });
+
+        if (res.ok) {
+            return await res.typed(PathsList);
+        } else {
+            throw new Err(res.status, new Error(await res.text()), 'Media Server Error');
+        }
+    }
+
     async path(pathid: string): Promise<Static<typeof PathListItem>> {
         const video = await this.settings();
         if (!video.configured) throw new Err(400, null, 'Media Integration is not configured');

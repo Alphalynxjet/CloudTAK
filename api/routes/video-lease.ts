@@ -12,7 +12,7 @@ import { StandardResponse, VideoLeaseResponse } from '../lib/types.js';
 import { VideoLease_SourceType, AllBoolean, AllBooleanCast } from '../lib/enums.js';
 import { VideoLease } from '../lib/schema.js'
 import { eq } from 'drizzle-orm';
-import ECSVideoControl, { Action, Protocols, PathListItem, ProtocolPopulation, Recording } from '../lib/control/video-service.js';
+import ECSVideoControl, { Action, Protocols, PathListItem, PathsList, ProtocolPopulation, Recording } from '../lib/control/video-service.js';
 import * as Default from '../lib/limits.js';
 import { TAKAPI, APIAuthCertificate } from '@tak-ps/node-tak';
 
@@ -539,6 +539,20 @@ export default async function router(schema: Schema, config: Config) {
             });
         } catch (err) {
              Err.respond(err, res);
+        }
+    });
+
+    await schema.get('/video/paths', {
+        name: 'List Media Paths',
+        group: 'VideoLease',
+        description: 'List all active paths on the media server',
+        res: PathsList
+    }, async (req, res) => {
+        try {
+            await Auth.as_user(config, req);
+            res.json(await videoControl.pathsList());
+        } catch (err) {
+            Err.respond(err, res);
         }
     });
 

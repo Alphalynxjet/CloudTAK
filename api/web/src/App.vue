@@ -6,31 +6,7 @@
         data-bs-theme-base='neutral'
         data-bs-theme-primary='blue'
     >
-        <!-- New-version upgrade banner -->
-        <div
-            v-if='updateAvailable'
-            class='d-flex align-items-center justify-content-center flex-wrap gap-2 px-3 py-2'
-            style='background: rgba(20,20,20,0.88); backdrop-filter: blur(6px);'
-        >
-            <IconRefresh
-                size='16'
-                class='text-success flex-shrink-0'
-            />
-            <span class='text-white small'>
-                A new version of CloudTAK is ready
-            </span>
-            <button
-                class='btn btn-sm btn-success py-0'
-                @click='applyUpdate'
-            >
-                Update Now
-            </button>
-            <button
-                class='btn-close btn-close-white'
-                style='font-size: 0.65rem;'
-                @click='updateAvailable = false'
-            />
-        </div>
+        <!-- New-version upgrade banner hidden: TakGrid manages upgrades centrally -->
         <header
             v-if='navShown'
             class='navbar navbar-expand-md d-print-none'
