@@ -119,9 +119,9 @@ export const PathListItem = Type.Object({
 
 export const Recording = Type.Object({
     name: Type.String(),
-    segmenets: Type.Array(Type.Object({
+    segments: Type.Array(Type.Object({
         start: Type.String()
-    }))
+    }), { default: [] })
 });
 
 export const PathsList = Type.Object({

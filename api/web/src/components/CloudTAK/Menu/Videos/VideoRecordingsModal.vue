@@ -119,12 +119,18 @@ onMounted(fetchRecordings);
 
 async function fetchRecordings() {
     loading.value = true;
-    const data = await std(`/api/video/lease/${props.lease.id}/recordings`) as {
-        name: string;
-        segmenets: Segment[];
-    };
-    segments.value = data.segmenets ?? [];
-    loading.value = false;
+    try {
+        const data = await std(`/api/video/lease/${props.lease.id}/recordings`) as {
+            name: string;
+            segments: Segment[];
+        };
+        segments.value = data.segments ?? [];
+    } catch (err) {
+        segments.value = [];
+        console.error('Failed to fetch recordings:', err);
+    } finally {
+        loading.value = false;
+    }
 }
 
 function formatDate(iso: string): string {
