@@ -59,7 +59,7 @@
                     title='View Recordings'
                     @click='showRecordings = true'
                 >
-                    <IconFilm
+                    <IconVideo
                         :size='32'
                         stroke='1'
                     />
@@ -544,7 +544,7 @@ import {
     IconServer,
     IconPencil,
     IconWand,
-    IconFilm,
+    IconVideo,
     IconArrowsLeftRight,
     IconBook2,
     IconAffiliate,
