@@ -303,7 +303,7 @@ const VideoWallPlayer = defineComponent({
             });
         }
 
-        onMounted(() => nextTick(() => initPlayer()));
+        onMounted(async () => { await nextTick(); initPlayer(); });
         onUnmounted(() => destroyPlayer());
 
         return () =>
