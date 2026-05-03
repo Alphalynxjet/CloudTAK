@@ -259,7 +259,7 @@ const VideoWallPlayer = defineComponent({
             attachVideoHandlers();
 
             const hls = new Hls({
-                enableWorker: true,
+                enableWorker: false,
                 lowLatencyMode: false,
                 debug: false,
                 backBufferLength: 90,

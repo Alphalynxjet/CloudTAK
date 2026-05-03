@@ -1,7 +1,7 @@
 import { Type, Static } from '@sinclair/typebox'
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
-import { Readable } from 'node:stream';
+import fs from 'node:fs';
 import Schema from '@openaddresses/batch-schema';
 import Err from '@openaddresses/batch-error';
 import Auth, { AuthUserAccess, AuthUser, AuthResource, AuthResourceAccess } from '../lib/auth.js';
@@ -699,16 +699,18 @@ export default async function router(schema: Schema, config: Config) {
 
             if (!lease.recording) throw new Err(400, null, 'Recording is not enabled for this lease');
 
-            const stream = await videoControl.streamRecordingSegment(lease.path, req.query.start);
+            const fileStream = videoControl.streamRecordingSegment(lease.path, req.query.start);
+            const filePath = videoControl.recordingFilePath(lease.path, req.query.start);
+            const stat = fs.statSync(filePath);
 
             const filename = `${lease.name}-${req.query.start}.mp4`.replace(/[^a-zA-Z0-9._-]/g, '_');
             res.setHeader('Content-Type', 'video/mp4');
+            res.setHeader('Content-Length', stat.size);
             res.setHeader('Accept-Ranges', 'bytes');
             res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
 
-            const nodeStream = Readable.fromWeb(stream.body as ReadableStream<Uint8Array>);
-            nodeStream.on('error', () => res.end());
-            nodeStream.pipe(res);
+            fileStream.on('error', () => res.end());
+            fileStream.pipe(res);
         } catch (err) {
             Err.respond(err, res);
         }

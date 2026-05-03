@@ -28,7 +28,7 @@
                 title='All Recordings'
                 @click='showRecordingsPage = true'
             >
-                <IconPlayerRecord
+                <IconHistory
                     :size='32'
                     stroke='1'
                 />
@@ -328,7 +328,7 @@ import {
     IconPencil,
     IconServer2,
     IconVideoPlus,
-    IconPlayerRecord,
+    IconHistory,
     IconCar,
     IconWalk,
     IconDrone,

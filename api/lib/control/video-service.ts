@@ -7,8 +7,12 @@ import { Type, Static } from '@sinclair/typebox';
 import { VideoLease } from '../schema.js';
 import { VideoLeaseResponse } from '../types.js';
 import { VideoLease_SourceType } from '../enums.js';
-import fetch, { TypedResponse } from '../fetch.js';
+import fetch from '../fetch.js';
 import { TAKAPI, APIAuthCertificate } from '@tak-ps/node-tak';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const RECORDINGS_DIR = '/recordings';
 
 export enum ProtocolPopulation {
     TEMPLATE,
@@ -827,45 +831,31 @@ export default class VideoServiceControl {
         }
     }
 
-    async deleteRecordingSegment(path: string, start: string): Promise<void> {
-        const video = await this.settings();
-        if (!video.configured) throw new Err(400, null, 'Media Integration is not configured');
-
-        const headers = this.headers(video.token);
-
-        const url = new URL('/v3/recordings/deletesegment', video.url);
-        url.port = '9997';
-        url.searchParams.set('path', path);
-        url.searchParams.set('start', start);
-
-        const res = await fetch(url, {
-            method: 'DELETE',
-            headers: Object.fromEntries(headers.entries()),
-        });
-
-        if (!res.ok) throw new Err(res.status, new Error(await res.text()), 'Media Server Error');
+    async deleteRecordingSegment(leasePath: string, start: string): Promise<void> {
+        const filePath = this.recordingFilePath(leasePath, start);
+        if (!fs.existsSync(filePath)) {
+            throw new Err(404, null, `Recording segment not found`);
+        }
+        await fs.promises.unlink(filePath);
     }
 
-    async streamRecordingSegment(path: string, start: string): Promise<TypedResponse> {
-        const video = await this.settings();
-        if (!video.configured) throw new Err(400, null, 'Media Integration is not configured');
+    recordingFilePath(leasePath: string, start: string): string {
+        // Convert ISO 8601 timestamp to mediamtx filename format
+        // e.g. "2026-05-03T19:23:56.179634Z" → "2026-05-03_19-23-56-179634.mp4"
+        const match = start.match(/(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})\.?(\d*)Z?$/);
+        if (!match) throw new Err(400, null, `Invalid timestamp format: ${start}`);
+        const [, date, hh, mm, ss, frac = ''] = match;
+        const microseconds = frac.padEnd(6, '0').substring(0, 6);
+        const filename = `${date}_${hh}-${mm}-${ss}-${microseconds}.mp4`;
+        return path.join(RECORDINGS_DIR, leasePath, filename);
+    }
 
-        const headers = this.headers(video.token);
-
-        // Port 9996 (mediamtx playback) is not proxied by nginx — use the internal
-        // Docker service name directly so the API container reaches it over the bridge network.
-        const url = new URL(`/${path}`, 'http://media');
-        url.port = '9996';
-        url.searchParams.set('start', start);
-        url.searchParams.set('duration', '3600');
-
-        const res = await fetch(url, {
-            method: 'GET',
-            headers: Object.fromEntries(headers.entries()),
-        });
-
-        if (!res.ok) throw new Err(res.status, new Error(await res.text()), 'Media Server Error');
-        return res;
+    streamRecordingSegment(leasePath: string, start: string): fs.ReadStream {
+        const filePath = this.recordingFilePath(leasePath, start);
+        if (!fs.existsSync(filePath)) {
+            throw new Err(404, null, `Recording segment not found: ${filePath}`);
+        }
+        return fs.createReadStream(filePath);
     }
 
     async recordingsByPaths(paths: string[]): Promise<Array<{ path: string, segments: Array<{ start: string }> }>> {
