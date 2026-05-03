@@ -8,12 +8,18 @@
             @click='emit("close")'
         />
         <div class='modal-header'>
-            <div class='modal-title'>All Recordings</div>
+            <div class='d-flex align-items-center gap-2'>
+                <IconHistory
+                    :size='22'
+                    stroke='1.5'
+                />
+                <span class='modal-title'>Recordings</span>
+            </div>
             <div class='ms-auto d-flex align-items-center gap-3'>
                 <span
                     v-if='!loading && data'
                     class='text-secondary small'
-                >{{ data.total_segments }} segment{{ data.total_segments !== 1 ? "s" : "" }}</span>
+                >{{ data.total_segments }} segment{{ data.total_segments !== 1 ? 's' : '' }}</span>
                 <TablerRefreshButton
                     :loading='loading'
                     @click='fetchRecordings'
@@ -35,56 +41,92 @@
             <div
                 v-for='rec in data.items'
                 :key='rec.path'
-                class='mb-3'
+                class='mb-4'
             >
-                <div class='d-flex align-items-center gap-2 mb-1 px-1'>
+                <div class='d-flex align-items-center gap-2 mb-2 px-1'>
                     <IconVideo
-                        :size='18'
+                        :size='16'
                         stroke='1'
-                        class='text-secondary'
+                        class='text-secondary flex-shrink-0'
                     />
-                    <span class='fw-bold'>{{ rec.lease_name || 'Deleted Lease' }}</span>
-                    <span class='text-secondary small ms-1'>{{ rec.segments.length }} segment{{ rec.segments.length !== 1 ? 's' : '' }}</span>
+                    <span class='fw-semibold'>{{ rec.lease_name || 'Deleted Lease' }}</span>
+                    <span class='text-secondary small'>{{ rec.segments.length }} segment{{ rec.segments.length !== 1 ? 's' : '' }}</span>
                     <span
                         v-if='!rec.lease_name'
-                        class='badge bg-red text-white ms-1'
+                        class='badge bg-red text-white'
                     >Orphaned</span>
-                    <code class='text-secondary small ms-auto'>{{ rec.path }}</code>
                 </div>
 
                 <StandardItem
                     v-for='seg in rec.segments'
                     :key='seg.start'
-                    class='d-flex align-items-center gap-3 p-2 mb-1'
+                    class='d-flex flex-column gap-2 p-2 mb-1'
                 >
-                    <div
-                        class='d-flex align-items-center justify-content-center rounded-circle bg-black bg-opacity-25'
-                        style='width: 2.5rem; height: 2.5rem; min-width: 2.5rem;'
-                    >
-                        <IconPlayerPlay
-                            :size='18'
-                            stroke='1'
-                        />
-                    </div>
-                    <div class='d-flex flex-column'>
-                        <div class='fw-bold small'>{{ formatDate(seg.start) }}</div>
-                        <div class='text-secondary' style='font-size:0.72rem;'>{{ seg.start }}</div>
-                    </div>
-                    <div class='d-flex btn-list ms-auto'>
-                        <TablerIconButton
-                            title='Download'
-                            :loading='downloading === rec.path + seg.start'
-                            @click.stop='download(rec, seg.start)'
+                    <div class='d-flex align-items-center gap-3'>
+                        <div
+                            class='d-flex align-items-center justify-content-center rounded-circle bg-black bg-opacity-25 flex-shrink-0'
+                            style='width: 2.5rem; height: 2.5rem;'
                         >
-                            <IconDownload
-                                :size='20'
+                            <IconPlayerPlay
+                                :size='16'
                                 stroke='1'
                             />
-                        </TablerIconButton>
-                        <TablerDelete
-                            displaytype='icon'
-                            @delete='deleteSegment(rec, seg.start)'
+                        </div>
+                        <div class='d-flex flex-column flex-grow-1'>
+                            <div class='fw-bold small'>{{ formatDate(seg.start) }}</div>
+                        </div>
+                        <div class='d-flex btn-list'>
+                            <TablerIconButton
+                                title='Play in browser'
+                                @click.stop='togglePlay(rec, seg.start)'
+                            >
+                                <IconPlayerPlay
+                                    v-if='playingKey !== rec.path + seg.start'
+                                    :size='20'
+                                    stroke='1'
+                                />
+                                <IconPlayerStop
+                                    v-else
+                                    :size='20'
+                                    stroke='1'
+                                />
+                            </TablerIconButton>
+                            <TablerIconButton
+                                title='Download'
+                                :loading='downloading === rec.path + seg.start'
+                                @click.stop='download(rec, seg.start)'
+                            >
+                                <IconDownload
+                                    :size='20'
+                                    stroke='1'
+                                />
+                            </TablerIconButton>
+                            <TablerDelete
+                                displaytype='icon'
+                                @delete='deleteSegment(rec, seg.start)'
+                            />
+                        </div>
+                    </div>
+
+                    <div
+                        v-if='playingKey === rec.path + seg.start && rec.lease_id'
+                        class='w-100'
+                        style='background:#000; border-radius:4px; overflow:hidden;'
+                    >
+                        <video
+                            ref='videoEl'
+                            :src='playbackUrl(rec.lease_id, seg.start)'
+                            controls
+                            autoplay
+                            style='width:100%; max-height:320px; display:block;'
+                            @error='playError = true'
                         />
+                        <div
+                            v-if='playError'
+                            class='text-center text-danger small py-2'
+                        >
+                            Playback failed — try downloading instead.
+                        </div>
                     </div>
                 </StandardItem>
             </div>
@@ -106,9 +148,11 @@ import { ref, onMounted } from 'vue';
 import { std } from '../../../../std.ts';
 import StandardItem from '../../util/StandardItem.vue';
 import {
+    IconHistory,
     IconVideo,
     IconDownload,
     IconPlayerPlay,
+    IconPlayerStop,
 } from '@tabler/icons-vue';
 import {
     TablerModal,
@@ -135,6 +179,8 @@ type RecordingsData = {
 
 const loading = ref(true);
 const downloading = ref<string | null>(null);
+const playingKey = ref<string | null>(null);
+const playError = ref(false);
 const data = ref<RecordingsData | null>(null);
 
 onMounted(fetchRecordings);
@@ -158,32 +204,46 @@ function formatDate(iso: string): string {
     });
 }
 
+function playbackUrl(leaseId: number, start: string): string {
+    const token = (localStorage as Record<string, string>).token || '';
+    return `/api/video/lease/${leaseId}/recordings/download?start=${encodeURIComponent(start)}&token=${encodeURIComponent(token)}`;
+}
+
+function togglePlay(rec: RecordingItem, start: string) {
+    const key = rec.path + start;
+    playError.value = false;
+    if (playingKey.value === key) {
+        playingKey.value = null;
+    } else {
+        playingKey.value = key;
+    }
+}
+
 async function download(rec: RecordingItem, start: string) {
+    if (!rec.lease_id) {
+        alert('Cannot download recordings from deleted leases.');
+        return;
+    }
     downloading.value = rec.path + start;
     try {
-        const name = `${rec.lease_name || rec.path}-${start}.mp4`;
-        if (rec.lease_id) {
-            await std(`/api/video/lease/${rec.lease_id}/recordings/download?start=${encodeURIComponent(start)}`, {
-                download: name
-            });
-        } else {
-            alert('Cannot download recordings from deleted leases yet.');
-        }
+        await std(
+            `/api/video/lease/${rec.lease_id}/recordings/download?start=${encodeURIComponent(start)}`,
+            { download: `${rec.lease_name || rec.path}-${start}.mp4` }
+        );
     } finally {
         downloading.value = null;
     }
 }
 
 async function deleteSegment(rec: RecordingItem, start: string) {
-    if (rec.lease_id) {
-        await std(`/api/video/lease/${rec.lease_id}/recordings?start=${encodeURIComponent(start)}`, {
-            method: 'DELETE'
-        });
-    } else {
-        await std(`/api/video/orphan-recording?path=${encodeURIComponent(rec.path)}&start=${encodeURIComponent(start)}`, {
-            method: 'DELETE'
-        });
+    if (!rec.lease_id) {
+        alert('Cannot delete recordings from deleted leases yet.');
+        return;
     }
+    await std(
+        `/api/video/lease/${rec.lease_id}/recordings?start=${encodeURIComponent(start)}`,
+        { method: 'DELETE' }
+    );
     await fetchRecordings();
 }
 </script>

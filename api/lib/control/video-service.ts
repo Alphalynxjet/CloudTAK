@@ -868,26 +868,21 @@ export default class VideoServiceControl {
         return res;
     }
 
-    async allRecordings(): Promise<Array<{ path: string, segments: Array<{ start: string }> }>> {
-        const video = await this.settings();
-        if (!video.configured) return [];
-
-        const headers = this.headers(video.token);
-        const url = new URL('/v3/recordings/list', video.url);
-        url.port = '9997';
-
-        const res = await fetch(url, {
-            method: 'GET',
-            headers: Object.fromEntries(headers.entries()),
-        });
-
-        if (!res.ok) return [];
-
-        const body = await res.json() as { items?: Array<{ name: string, segments: Array<{ start: string }> }> };
-        return (body.items || []).map(item => ({
-            path: item.name,
-            segments: item.segments || []
-        }));
+    async recordingsByPaths(paths: string[]): Promise<Array<{ path: string, segments: Array<{ start: string }> }>> {
+        const results = await Promise.allSettled(
+            paths.map(async (path) => {
+                try {
+                    const rec = await this.recordings(path);
+                    return { path, segments: rec.segments ?? [] };
+                } catch {
+                    return { path, segments: [] as Array<{ start: string }> };
+                }
+            })
+        );
+        return results
+            .filter((r): r is PromiseFulfilledResult<{ path: string; segments: Array<{ start: string }> }> => r.status === 'fulfilled')
+            .map(r => r.value)
+            .filter(r => r.segments.length > 0);
     }
 
     async delete(

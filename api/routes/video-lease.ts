@@ -559,17 +559,19 @@ export default async function router(schema: Schema, config: Config) {
         try {
             const user = await Auth.as_user(config, req);
 
-            const allRecs = await videoControl.allRecordings();
-
             const leaseList = await config.models.VideoLease.list({
                 limit: 1000,
                 page: 0,
                 order: 'desc',
                 sort: 'created',
-                where: user.access === AuthUserAccess.ADMIN
-                    ? undefined
-                    : undefined
+                where: undefined
             });
+
+            const paths = leaseList.items
+                .filter(l => l.recording)
+                .map(l => l.path);
+
+            const allRecs = await videoControl.recordingsByPaths(paths);
 
             const leaseByPath = new Map<string, { id: number, name: string }>();
             for (const l of leaseList.items) {
@@ -677,32 +679,23 @@ export default async function router(schema: Schema, config: Config) {
     await schema.get('/video/lease/:lease/recordings/download', {
         name: 'Download Recording Segment',
         group: 'VideoLease',
-        description: 'Stream download a recorded segment for a video lease',
+        description: 'Stream a recorded segment — supports ?token= for browser <video> playback',
         params: Type.Object({
             lease: Type.Union([Type.Integer(), Type.String()])
         }),
         query: Type.Object({
-            start: Type.String({ description: 'Segment start timestamp (ISO 8601)' })
+            start: Type.String({ description: 'Segment start timestamp (ISO 8601)' }),
+            token: Type.Optional(Type.String({ description: 'JWT token (alternative to Authorization header, for browser video elements)' }))
         }),
         res: Type.Any()
     }, async (req, res) => {
         try {
-            const auth = await Auth.is_auth(config, req, {
-                resources: [{ access: AuthResourceAccess.LEASE, id: undefined }]
-            });
+            const user = await Auth.as_user(config, req, { token: true });
 
-            let lease: Static<typeof VideoLeaseResponse>;
-            if (auth instanceof AuthResource) {
-                lease = await videoControl.from(req.params.lease, { admin: true });
-            } else if (auth instanceof AuthUser) {
-                const user = auth as AuthUser;
-                lease = await videoControl.from(req.params.lease, {
-                    username: user.email,
-                    admin: user.access === AuthUserAccess.ADMIN
-                });
-            } else {
-                throw new Err(401, null, 'Unauthorized');
-            }
+            const lease = await videoControl.from(req.params.lease, {
+                username: user.email,
+                admin: user.access === AuthUserAccess.ADMIN
+            });
 
             if (!lease.recording) throw new Err(400, null, 'Recording is not enabled for this lease');
 
@@ -710,7 +703,8 @@ export default async function router(schema: Schema, config: Config) {
 
             const filename = `${lease.name}-${req.query.start}.mp4`.replace(/[^a-zA-Z0-9._-]/g, '_');
             res.setHeader('Content-Type', 'video/mp4');
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.setHeader('Accept-Ranges', 'bytes');
+            res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
 
             const nodeStream = Readable.fromWeb(stream.body as ReadableStream<Uint8Array>);
             nodeStream.on('error', () => res.end());

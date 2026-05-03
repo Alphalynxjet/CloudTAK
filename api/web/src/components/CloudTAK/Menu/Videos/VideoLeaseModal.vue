@@ -54,17 +54,6 @@
                     />
                 </TablerIconButton>
 
-                <TablerIconButton
-                    v-if='disabled && editLease.id && editLease.recording'
-                    title='View Recordings'
-                    @click='showRecordings = true'
-                >
-                    <IconVideo
-                        :size='32'
-                        stroke='1'
-                    />
-                </TablerIconButton>
-
                 <TablerDelete
                     v-if='editLease.id'
                     displaytype='icon'
@@ -521,19 +510,12 @@
             </div>
         </template>
     </TablerModal>
-
-    <VideoRecordingsModal
-        v-if='showRecordings'
-        :lease='props.lease'
-        @close='showRecordings = false'
-    />
 </template>
 
 <script setup lang='ts'>
 import { server } from '../../../../std.ts';
 import { validateURL } from '../../../../base/validators.ts';
 import CopyField from '../../util/CopyField.vue';
-import VideoRecordingsModal from './VideoRecordingsModal.vue';
 import { ref, onMounted } from 'vue';
 import type { paths } from '@cloudtak/api-types';
 import type { VideoLease, VideoLeaseProtocols } from '../../../../types.ts';
@@ -544,7 +526,6 @@ import {
     IconServer,
     IconPencil,
     IconWand,
-    IconVideo,
     IconArrowsLeftRight,
     IconBook2,
     IconAffiliate,
@@ -578,7 +559,6 @@ const loading = ref(true);
 const secure = ref(false);
 const disabled = ref(true);
 const wizard = ref(0);
-const showRecordings = ref(false);
 const protocols = ref<VideoLeaseProtocols>({});
 
 const channels = ref<string[]>([]);
