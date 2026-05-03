@@ -454,7 +454,7 @@ async function fetchConnections(): Promise<void> {
         const [connectionsRes, pathsData, leasesRes] = await Promise.all([
             server.GET('/api/marti/video'),
             std('/api/video/paths').catch(() => ({ items: [] })) as Promise<{ items: { name: string, ready: boolean }[] }>,
-            server.GET('/api/video/lease', { params: { query: { limit: 200, page: 0, order: 'desc', sort: 'created', expired: 'false', ephemeral: 'false' } } })
+            server.GET('/api/video/lease', { params: { query: { limit: 200, page: 0, order: 'desc', sort: 'created', expired: 'false', ephemeral: 'false', filter: '' } } })
         ]);
 
         if (connectionsRes.error) throw new Error(connectionsRes.error.message);
