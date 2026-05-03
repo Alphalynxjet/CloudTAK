@@ -7,7 +7,7 @@ import { Type, Static } from '@sinclair/typebox';
 import { VideoLease } from '../schema.js';
 import { VideoLeaseResponse } from '../types.js';
 import { VideoLease_SourceType } from '../enums.js';
-import fetch from '../fetch.js';
+import fetch, { TypedResponse } from '../fetch.js';
 import { TAKAPI, APIAuthCertificate } from '@tak-ps/node-tak';
 
 export enum ProtocolPopulation {
@@ -805,6 +805,45 @@ export default class VideoServiceControl {
         } else {
             throw new Err(res.status, new Error(await res.text()), 'Media Server Error');
         }
+    }
+
+    async deleteRecordingSegment(path: string, start: string): Promise<void> {
+        const video = await this.settings();
+        if (!video.configured) throw new Err(400, null, 'Media Integration is not configured');
+
+        const headers = this.headers(video.token);
+
+        const url = new URL('/v3/recordings/deletesegment', video.url);
+        url.port = '9997';
+        url.searchParams.set('path', path);
+        url.searchParams.set('start', start);
+
+        const res = await fetch(url, {
+            method: 'DELETE',
+            headers: Object.fromEntries(headers.entries()),
+        });
+
+        if (!res.ok) throw new Err(res.status, new Error(await res.text()), 'Media Server Error');
+    }
+
+    async streamRecordingSegment(path: string, start: string): Promise<TypedResponse> {
+        const video = await this.settings();
+        if (!video.configured) throw new Err(400, null, 'Media Integration is not configured');
+
+        const headers = this.headers(video.token);
+
+        const url = new URL(`/${path}`, video.url);
+        url.port = '9996';
+        url.searchParams.set('start', start);
+        url.searchParams.set('duration', '3600');
+
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: Object.fromEntries(headers.entries()),
+        });
+
+        if (!res.ok) throw new Err(res.status, new Error(await res.text()), 'Media Server Error');
+        return res;
     }
 
     async delete(

@@ -1,6 +1,7 @@
 import { Type, Static } from '@sinclair/typebox'
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
+import { Readable } from 'node:stream';
 import Schema from '@openaddresses/batch-schema';
 import Err from '@openaddresses/batch-error';
 import Auth, { AuthUserAccess, AuthUser, AuthResource, AuthResourceAccess } from '../lib/auth.js';
@@ -11,7 +12,7 @@ import { StandardResponse, VideoLeaseResponse } from '../lib/types.js';
 import { VideoLease_SourceType, AllBoolean, AllBooleanCast } from '../lib/enums.js';
 import { VideoLease } from '../lib/schema.js'
 import { eq } from 'drizzle-orm';
-import ECSVideoControl, { Action, Protocols, PathListItem, ProtocolPopulation } from '../lib/control/video-service.js';
+import ECSVideoControl, { Action, Protocols, PathListItem, ProtocolPopulation, Recording } from '../lib/control/video-service.js';
 import * as Default from '../lib/limits.js';
 import { TAKAPI, APIAuthCertificate } from '@tak-ps/node-tak';
 
@@ -536,6 +537,117 @@ export default async function router(schema: Schema, config: Config) {
             });
         } catch (err) {
              Err.respond(err, res);
+        }
+    });
+
+    await schema.get('/video/lease/:lease/recordings', {
+        name: 'List Lease Recordings',
+        group: 'VideoLease',
+        description: 'List recorded segments for a video lease',
+        params: Type.Object({
+            lease: Type.Union([Type.Integer(), Type.String()])
+        }),
+        res: Recording
+    }, async (req, res) => {
+        try {
+            const auth = await Auth.is_auth(config, req, {
+                resources: [{ access: AuthResourceAccess.LEASE, id: undefined }]
+            });
+
+            let lease: Static<typeof VideoLeaseResponse>;
+            if (auth instanceof AuthResource) {
+                lease = await videoControl.from(req.params.lease, { admin: true });
+            } else if (auth instanceof AuthUser) {
+                const user = auth as AuthUser;
+                lease = await videoControl.from(req.params.lease, {
+                    username: user.email,
+                    admin: user.access === AuthUserAccess.ADMIN
+                });
+            } else {
+                throw new Err(401, null, 'Unauthorized');
+            }
+
+            if (!lease.recording) throw new Err(400, null, 'Recording is not enabled for this lease');
+
+            res.json(await videoControl.recordings(lease.path));
+        } catch (err) {
+            Err.respond(err, res);
+        }
+    });
+
+    await schema.delete('/video/lease/:lease/recordings', {
+        name: 'Delete Recording Segment',
+        group: 'VideoLease',
+        description: 'Delete a single recorded segment for a video lease',
+        params: Type.Object({
+            lease: Type.Union([Type.Integer(), Type.String()])
+        }),
+        query: Type.Object({
+            start: Type.String({ description: 'Segment start timestamp (ISO 8601)' })
+        }),
+        res: StandardResponse
+    }, async (req, res) => {
+        try {
+            const user = await Auth.as_user(config, req);
+
+            const lease = await videoControl.from(req.params.lease, {
+                username: user.email,
+                admin: user.access === AuthUserAccess.ADMIN
+            });
+
+            if (!lease.recording) throw new Err(400, null, 'Recording is not enabled for this lease');
+
+            await videoControl.deleteRecordingSegment(lease.path, req.query.start);
+
+            res.json({ status: 200, message: 'Recording Segment Deleted' });
+        } catch (err) {
+            Err.respond(err, res);
+        }
+    });
+
+    await schema.get('/video/lease/:lease/recordings/download', {
+        name: 'Download Recording Segment',
+        group: 'VideoLease',
+        description: 'Stream download a recorded segment for a video lease',
+        params: Type.Object({
+            lease: Type.Union([Type.Integer(), Type.String()])
+        }),
+        query: Type.Object({
+            start: Type.String({ description: 'Segment start timestamp (ISO 8601)' })
+        }),
+        res: Type.Any()
+    }, async (req, res) => {
+        try {
+            const auth = await Auth.is_auth(config, req, {
+                resources: [{ access: AuthResourceAccess.LEASE, id: undefined }]
+            });
+
+            let lease: Static<typeof VideoLeaseResponse>;
+            if (auth instanceof AuthResource) {
+                lease = await videoControl.from(req.params.lease, { admin: true });
+            } else if (auth instanceof AuthUser) {
+                const user = auth as AuthUser;
+                lease = await videoControl.from(req.params.lease, {
+                    username: user.email,
+                    admin: user.access === AuthUserAccess.ADMIN
+                });
+            } else {
+                throw new Err(401, null, 'Unauthorized');
+            }
+
+            if (!lease.recording) throw new Err(400, null, 'Recording is not enabled for this lease');
+
+            const stream = await videoControl.streamRecordingSegment(lease.path, req.query.start);
+
+            const filename = `${lease.name}-${req.query.start}.mp4`.replace(/[^a-zA-Z0-9._-]/g, '_');
+            res.setHeader('Content-Type', 'video/mp4');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+            const nodeStream = Readable.fromWeb(stream.body as ReadableStream<Uint8Array>);
+            nodeStream.on('error', () => res.end());
+            nodeStream.pipe(res);
+        } catch (err) {
+            Err.respond(err, res);
         }
     });
 }
