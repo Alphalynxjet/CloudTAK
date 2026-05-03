@@ -171,10 +171,12 @@ export default async function router(schema: Schema, config: Config) {
                         }
                     });
                 } else if (lease.read_user && lease.read_pass) {
-                    if (
+                    const isOwner = lease.username === user.email || user.access === AuthUserAccess.ADMIN;
+
+                    if (!isOwner && (
                         !req.query.url.includes(lease.read_user)
                         || !req.query.url.includes(lease.read_pass)
-                    ) {
+                    )) {
                         throw new Err(400, null, 'Invalid Access credentials');
                     }
 
@@ -186,7 +188,7 @@ export default async function router(schema: Schema, config: Config) {
                         }
                     });
                 } else {
-                    throw new Err(400, null, 'Clould not determine lease state');
+                    throw new Err(400, null, 'Could not determine lease state');
                 }
             }
         } catch (err) {
