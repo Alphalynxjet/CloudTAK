@@ -557,7 +557,7 @@ export default async function router(schema: Schema, config: Config) {
         })
     }, async (req, res) => {
         try {
-            const user = await Auth.as_user(config, req);
+            await Auth.as_user(config, req);
 
             const leaseList = await config.models.VideoLease.list({
                 limit: 1000,
