@@ -164,7 +164,7 @@ import { WorkerMessageType } from './base/events.ts';
 import type { WorkerMessage } from './base/events.ts';
 import { isNativePlatform, supportsServiceWorker } from './base/capacitor.ts';
 import { db } from './base/database.ts';
-import { getPageServiceWorkerBuildId, markUpdateRequestedByThisTab } from './base/service-worker.ts';
+import { getPageServiceWorkerBuildId } from './base/service-worker.ts';
 import { useMapStore } from './stores/map.ts';
 
 const router = useRouter();
