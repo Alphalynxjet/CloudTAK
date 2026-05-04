@@ -304,6 +304,7 @@
 
     <VideoRecordingsPage
         v-if='showRecordingsPage'
+        :is-system-admin='isSystemAdmin'
         @close='showRecordingsPage = false'
     />
 </template>

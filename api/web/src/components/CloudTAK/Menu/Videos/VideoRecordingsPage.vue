@@ -158,7 +158,7 @@
                                 >
                                     <IconDownload :size='20' stroke='1' />
                                 </TablerIconButton>
-                                <TablerDelete displaytype='icon' @delete='deleteSegment(rec, seg.start)' />
+                                <TablerDelete v-if='props.isSystemAdmin' displaytype='icon' @delete='deleteSegment(rec, seg.start)' />
                             </div>
                         </div>
                         <div
@@ -202,6 +202,7 @@ import {
     TablerIconButton, TablerDelete, TablerRefreshButton,
 } from '@tak-ps/vue-tabler';
 
+const props = defineProps({ isSystemAdmin: { type: Boolean, default: false } });
 const emit = defineEmits(['close']);
 
 type Segment = { start: string; size: number };
