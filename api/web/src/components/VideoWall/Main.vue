@@ -326,17 +326,17 @@ async function refresh() {
     border-radius: 8px;
     overflow: hidden;
     background: #1a1a1a;
-    display: flex;
-    flex-direction: column;
     border: 1px solid rgba(255,255,255,0.06);
     transition: border-color 0.2s;
     min-height: 0;
+    min-width: 0;
 }
 .wall-cell.cell-live { border-color: rgba(37, 162, 68, 0.4); }
 
 /* Offline placeholder */
 .cell-offline {
-    flex: 1;
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
