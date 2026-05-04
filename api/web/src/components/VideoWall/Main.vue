@@ -136,16 +136,21 @@ const VideoWallPlayer = defineComponent({
             const url = new URL(rawUrl);
             attachHandlers();
             const hls = new Hls({
-                enableWorker: false, lowLatencyMode: true, debug: false,
+                enableWorker: false, lowLatencyMode: false, debug: false,
                 backBufferLength: 30, maxBufferLength: 10,
                 xhrSetup(xhr) {
                     if (url.username && url.password)
                         xhr.setRequestHeader('Authorization', 'Basic ' + btoa(`${url.username}:${url.password}`));
                 },
             });
+            // Strip credentials from URL — pass via header instead to avoid browser security blocks
+            const cleanUrl = new URL(url.toString());
+            cleanUrl.username = '';
+            cleanUrl.password = '';
+
             player.value = hls;
             hls.attachMedia(videoEl.value);
-            hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(url.toString()));
+            hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(cleanUrl.toString()));
             hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.value?.play().catch(() => {}));
             hls.on(Hls.Events.ERROR, (_e, d) => {
                 if (!d.fatal) { hls.startLoad(); return; }
