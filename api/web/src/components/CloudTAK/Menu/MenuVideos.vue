@@ -276,6 +276,7 @@
                         <div class='d-flex btn-list ms-auto'>
                             <TablerDelete
                                 displaytype='icon'
+                                :description='l.recording ? `Delete lease "${l.name || "Unnamed"}" and all its recordings? This cannot be undone.` : undefined'
                                 @delete='deleteLease(l)'
                             />
                         </div>

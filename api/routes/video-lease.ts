@@ -2,6 +2,7 @@ import { Type, Static } from '@sinclair/typebox'
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
 import fs from 'node:fs';
+import nodePath from 'node:path';
 import Schema from '@openaddresses/batch-schema';
 import Err from '@openaddresses/batch-error';
 import Auth, { AuthUserAccess, AuthUser, AuthResource, AuthResourceAccess } from '../lib/auth.js';
@@ -528,10 +529,21 @@ export default async function router(schema: Schema, config: Config) {
         try {
             const user = await Auth.as_user(config, req);
 
+            const lease = await videoControl.from(req.params.lease, {
+                username: user.email,
+                admin: user.access === AuthUserAccess.ADMIN
+            });
+
             await videoControl.delete(req.params.lease, {
                 username: user.email,
                 admin: user.access === AuthUserAccess.ADMIN
             });
+
+            // Delete recordings directory from filesystem
+            try {
+                const recDir = nodePath.join('/recordings', lease.path);
+                fs.rmSync(recDir, { recursive: true, force: true });
+            } catch { /* recordings dir may not exist */ }
 
             res.json({
                 status: 200,
@@ -557,7 +569,8 @@ export default async function router(schema: Schema, config: Config) {
         })
     }, async (req, res) => {
         try {
-            await Auth.as_user(config, req);
+            const user = await Auth.as_user(config, req);
+            const isAdmin = user.access === AuthUserAccess.ADMIN;
 
             const leaseList = await config.models.VideoLease.list({
                 limit: 1000,
@@ -565,17 +578,28 @@ export default async function router(schema: Schema, config: Config) {
                 where: undefined
             });
 
-            const leaseByPath = new Map<string, { id: number, name: string }>();
+            // Filter leases visible to this user
+            const visibleLeases = leaseList.items.filter(l => {
+                if (isAdmin) return true;
+                if (l.username === user.email) return true;
+                if (l.share) return true;
+                return false;
+            });
+
+            const leaseByPath = new Map<string, { id: number, name: string, username: string, share: boolean }>();
             for (const l of leaseList.items) {
-                leaseByPath.set(l.path, { id: l.id, name: l.name });
+                leaseByPath.set(l.path, { id: l.id, name: l.name, username: l.username, share: l.share });
             }
 
-            // Active lease paths + any orphaned paths found on disk
-            const leasePaths = new Set(leaseList.items.filter(l => l.recording).map(l => l.path));
-            try {
-                const fsDirs = (await import('node:fs')).readdirSync('/recordings');
-                for (const dir of fsDirs) leasePaths.add(dir);
-            } catch { /* recordings dir may not exist */ }
+            // Paths from visible recording-enabled leases
+            const leasePaths = new Set(visibleLeases.filter(l => l.recording).map(l => l.path));
+
+            // Admins also see orphaned recordings from disk
+            if (isAdmin) {
+                try {
+                    for (const dir of fs.readdirSync('/recordings')) leasePaths.add(dir);
+                } catch { /* recordings dir may not exist */ }
+            }
 
             const allRecs = await videoControl.recordingsByPaths([...leasePaths]);
 
