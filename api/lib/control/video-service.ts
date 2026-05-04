@@ -859,6 +859,15 @@ export default class VideoServiceControl {
         return fs.createReadStream(filePath);
     }
 
+    async hlsUrlForPath(pathName: string): Promise<string> {
+        const video = await this.settings();
+        if (!video.configured) throw new Err(400, null, 'Media Integration is not configured');
+        const url = new URL(video.url);
+        url.port = '9997';
+        url.pathname = `/stream/${pathName}/index.m3u8`;
+        return String(url);
+    }
+
     segmentFileSize(leasePath: string, start: string): number {
         // Try exact filename match first
         try {

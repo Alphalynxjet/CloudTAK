@@ -109,17 +109,12 @@
                         muted
                     />
                     
-                    <!-- Buffering Overlay -->
+                    <!-- Buffering indicator (corner only, no darkening) -->
                     <div
                         v-if='isBuffering'
-                        class='buffering-overlay'
+                        style='position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,0.55); border-radius:4px; padding:2px 8px; font-size:0.7rem; color:rgba(255,255,255,0.8); pointer-events:none;'
                     >
-                        <div class='buffering-icon'>
-                            <IconPlayerPauseFilled :size='64' />
-                            <div class='mt-2 fw-bold'>
-                                Buffering...
-                            </div>
-                        </div>
+                        Buffering…
                     </div>
                 </div>
             </template>
@@ -200,7 +195,7 @@ const isBuffering = ref(false);
 const bufferDebounceTimer = ref<number | undefined>();
 const bufferRecoveryTimeout = ref<number | undefined>();
 
-const BUFFER_DEBOUNCE_MS = 1500;       // only show overlay after stalling this long
+const BUFFER_DEBOUNCE_MS = 3000;       // only show overlay after stalling this long
 const BUFFER_RECOVERY_TIMEOUT_MS = 10000;
 
 // Computed title - uses stream metadata name if available, falls back to prop
@@ -313,11 +308,11 @@ async function createPlayer(): Promise<void> {
             enableWorker: true,
             lowLatencyMode: false, // More forgiving for stream restarts
             debug: false,
-            backBufferLength: 90, // Keep more buffer for smoother playback
-            maxBufferLength: 30, // Larger buffer for resilience
+            backBufferLength: 120,
+            maxBufferLength: 60,
             maxMaxBufferLength: 600,
-            liveSyncDurationCount: 3, // More tolerant of discontinuities
-            liveMaxLatencyDurationCount: 10,
+            liveSyncDurationCount: 5,
+            liveMaxLatencyDurationCount: 15,
             xhrSetup: (xhr: XMLHttpRequest) => {
                 // Add authentication if stream requires it
                 if (url.username && url.password) {

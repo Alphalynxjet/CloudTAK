@@ -791,4 +791,20 @@ export default async function router(schema: Schema, config: Config) {
             Err.respond(err, res);
         }
     });
+
+    await schema.get('/video/path/:path/hls', {
+        name: 'Get HLS URL for Path',
+        group: 'VideoLease',
+        description: 'Return the HLS stream URL for an active mediamtx path by name',
+        params: Type.Object({ path: Type.String() }),
+        res: Type.Object({ url: Type.String() })
+    }, async (req, res) => {
+        try {
+            await Auth.as_user(config, req, { token: true });
+            const url = await videoControl.hlsUrlForPath(req.params.path);
+            res.json({ url });
+        } catch (err) {
+            Err.respond(err, res);
+        }
+    });
 }

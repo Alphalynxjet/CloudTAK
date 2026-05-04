@@ -2,7 +2,12 @@
     <div class='video-wall-root'>
         <!-- Header -->
         <div class='wall-header'>
-            <IconDeviceTv :size='24' stroke='1' />
+            <button class='back-btn' title='Back to CloudTAK' @click='goBack'>
+                <IconArrowLeft :size='18' stroke='1.5' />
+                <span>CloudTAK</span>
+            </button>
+            <div class='wall-header-divider' />
+            <IconDeviceTv :size='22' stroke='1' />
             <span class='wall-title'>Video Wall</span>
             <span v-if='liveCount' class='live-badge'>{{ liveCount }} LIVE</span>
             <div class='wall-header-right'>
@@ -17,9 +22,10 @@
         <div class='wall-body'>
             <TablerLoading v-if='loading' label='Loading streams…' />
             <div v-else-if='streams.length === 0' class='wall-empty'>
-                <IconDeviceTv :size='48' stroke='0.75' class='wall-empty-icon' />
-                <div class='wall-empty-label'>No video leases found</div>
-                <div class='wall-empty-sub'>Create a lease in the Videos sidebar to get started</div>
+                <IconDeviceTv :size='56' stroke='0.75' class='wall-empty-icon' />
+                <div class='wall-empty-label'>No streams configured</div>
+                <div class='wall-empty-sub'>Open CloudTAK → Videos → Leases to set up a video stream</div>
+                <button class='wall-empty-btn' @click='goBack'>Open CloudTAK</button>
             </div>
             <div v-else class='wall-grid' :style='gridStyle'>
                 <div
@@ -67,9 +73,10 @@
 <script setup lang='ts'>
 import { ref, computed, onMounted, onUnmounted, defineComponent, h, nextTick } from 'vue';
 import { std } from '../../std.ts';
+
 import type { VideoLease, VideoLeaseMetadata } from '../../types.ts';
 import { TablerLoading } from '@tak-ps/vue-tabler';
-import { IconDeviceTv, IconRefresh, IconUsersGroup, IconVideoOff } from '@tabler/icons-vue';
+import { IconDeviceTv, IconRefresh, IconUsersGroup, IconVideoOff, IconArrowLeft } from '@tabler/icons-vue';
 import Hls from 'hls.js';
 
 type PathItem = { name: string; ready: boolean; readers: unknown[] };
@@ -96,7 +103,7 @@ const VideoWallPlayer = defineComponent({
 
         function scheduleBuffering() {
             clearTimeout(bufDebounce);
-            bufDebounce = window.setTimeout(() => { buffering.value = true; }, 1500);
+            bufDebounce = window.setTimeout(() => { buffering.value = true; }, 3000);
         }
         function clearBuffering() {
             clearTimeout(bufDebounce);
@@ -145,7 +152,7 @@ const VideoWallPlayer = defineComponent({
 
         return () => h('div', { class: 'player-wrap' }, [
             h('video', { ref: videoEl, class: 'player-video', controls: true, autoplay: true, muted: true, playsinline: true }),
-            buffering.value ? h('div', { class: 'player-buffering' }, [h('span', {}, 'Buffering…')]) : null,
+            buffering.value ? h('div', { class: 'player-buffering' }, [h('span', {}, '⏳')]) : null,
         ]);
     },
 });
@@ -172,35 +179,49 @@ async function load() {
     try {
         const [pathsData, leasesData] = await Promise.all([
             std('/api/video/paths') as Promise<{ items: PathItem[] }>,
-            std('/api/video/lease?limit=200&page=0&order=desc&sort=created&expired=false&ephemeral=false&filter=') as Promise<{ items: VideoLease[] }>,
+            std('/api/video/lease?limit=200&page=0&order=desc&sort=created&expired=false&filter=') as Promise<{ total: number; items: VideoLease[] }>,
         ]);
 
-        const readySet = new Set((pathsData.items ?? []).filter(p => p.ready).map(p => p.name));
+        const activePaths = (pathsData.items ?? []).filter(p => p.ready);
         const readerMap = new Map<string, number>(
-            (pathsData.items ?? []).map(p => [p.name, Array.isArray(p.readers) ? p.readers.length : 0])
+            activePaths.map(p => [p.name, Array.isArray(p.readers) ? p.readers.length : 0])
         );
 
-        const leases = leasesData.items ?? [];
-        // Sort: live first, then alphabetical
-        leases.sort((a, b) => {
-            const al = readySet.has(a.path) ? 1 : 0;
-            const bl = readySet.has(b.path) ? 1 : 0;
-            if (al !== bl) return bl - al;
-            return (a.name || '').localeCompare(b.name || '');
-        });
+        // Build lease name lookup by path UUID
+        const leaseByPath = new Map<string, VideoLease>();
+        for (const l of (leasesData.items ?? [])) leaseByPath.set(l.path, l);
 
         const result: Stream[] = [];
-        for (const lease of leases) {
-            const live = readySet.has(lease.path);
+
+        // Active streams: use mediamtx paths as source of truth
+        for (const p of activePaths) {
+            const lease = leaseByPath.get(p.name);
             let hlsUrl: string | null = null;
-            if (live) {
-                try {
+            try {
+                if (lease) {
                     const meta = await std(`/api/video/lease/${lease.id}/metadata`) as VideoLeaseMetadata;
                     hlsUrl = meta?.protocols?.hls?.url?.replace(/\{\{mode\}\}/g, 'read') ?? null;
-                } catch { /* stream metadata unavailable */ }
-            }
-            result.push({ lease, live, readers: readerMap.get(lease.path) ?? 0, hlsUrl });
+                } else {
+                    const r = await std(`/api/video/path/${p.name}/hls`) as { url: string };
+                    hlsUrl = r.url;
+                }
+            } catch { /* stream metadata unavailable */ }
+            result.push({
+                lease: lease ?? { id: 0, path: p.name, name: p.name } as VideoLease,
+                live: true,
+                readers: readerMap.get(p.name) ?? 0,
+                hlsUrl
+            });
         }
+
+        // Offline leases (not currently in active paths)
+        const activePathNames = new Set(activePaths.map(p => p.name));
+        for (const lease of (leasesData.items ?? [])) {
+            if (!activePathNames.has(lease.path)) {
+                result.push({ lease, live: false, readers: 0, hlsUrl: null });
+            }
+        }
+
         streams.value = result;
     } catch (err) {
         console.error('VideoWall load error:', err);
@@ -208,6 +229,8 @@ async function load() {
         loading.value = false;
     }
 }
+
+function goBack() { window.close(); if (document.referrer) window.location.href = document.referrer; else window.location.href = '/'; }
 
 async function refresh() {
     try {
@@ -235,6 +258,19 @@ async function refresh() {
     background: #0d0d0d;
     color: #fff;
     font-family: system-ui, sans-serif;
+}
+
+/* Back button */
+.back-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: none; border: none; color: rgba(255,255,255,0.55);
+    cursor: pointer; font-size: 0.82rem; padding: 4px 8px;
+    border-radius: 5px; transition: color 0.15s, background 0.15s;
+    white-space: nowrap;
+}
+.back-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.wall-header-divider {
+    width: 1px; height: 18px; background: rgba(255,255,255,0.12); flex-shrink: 0;
 }
 
 /* Header */
@@ -277,6 +313,18 @@ async function refresh() {
 .wall-empty-icon { opacity: 0.3; }
 .wall-empty-label { font-size: 1.1rem; font-weight: 500; }
 .wall-empty-sub { font-size: 0.85rem; }
+.wall-empty-btn {
+    margin-top: 8px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.7);
+    font-size: 0.82rem;
+    padding: 6px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.wall-empty-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
 
 /* Grid */
 .wall-grid {
@@ -372,11 +420,12 @@ async function refresh() {
 .player-wrap { position: relative; width: 100%; height: 100%; }
 .player-video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
 .player-buffering {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.6);
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.7);
+    position: absolute; bottom: 8px; right: 8px;
+    background: rgba(0,0,0,0.55);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.8);
     pointer-events: none;
 }
 </style>
