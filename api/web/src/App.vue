@@ -204,6 +204,16 @@ const user = ref(false);
 const error = ref<Error | undefined>();
 
 let displayStyleSub: Subscription | undefined;
+let videoBadgeTimer: number | undefined;
+
+async function pollVideoBadge() {
+    try {
+        const res = await fetch('/api/video/paths', { headers: { Authorization: `Bearer ${localStorage.token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        mapStore.menu.activeVideoCount.value = (data.items ?? []).filter((p: { ready: boolean }) => p.ready).length;
+    } catch { /* ignore */ }
+}
 const systemThemeQuery = typeof window !== 'undefined'
     ? window.matchMedia('(prefers-color-scheme: dark)')
     : undefined;
@@ -393,12 +403,17 @@ onMounted(async () => {
 
     loading.value = false;
     mounted.value = true;
+
+    // Poll active video streams for sidebar badge
+    await pollVideoBadge();
+    videoBadgeTimer = window.setInterval(pollVideoBadge, 30_000);
 });
 
 onUnmounted(() => {
     window.removeEventListener('sw:update-available', onSwUpdateAvailable);
     systemThemeQuery?.removeEventListener('change', onSystemThemeChange);
     displayStyleSub?.unsubscribe();
+    if (videoBadgeTimer) clearInterval(videoBadgeTimer);
 });
 
 function logout() {
