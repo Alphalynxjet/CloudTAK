@@ -552,7 +552,7 @@ export default async function router(schema: Schema, config: Config) {
                 path: Type.String(),
                 lease_id: Type.Union([Type.Integer(), Type.Null()]),
                 lease_name: Type.Union([Type.String(), Type.Null()]),
-                segments: Type.Array(Type.Object({ start: Type.String() }))
+                segments: Type.Array(Type.Object({ start: Type.String(), size: Type.Integer({ default: 0 }) }))
             }))
         })
     }, async (req, res) => {
