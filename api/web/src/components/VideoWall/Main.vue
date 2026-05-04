@@ -236,12 +236,14 @@ async function refresh() {
 
 <style scoped>
 .video-wall-root {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-rows: auto 1fr;
     background: #0d0d0d;
     color: #fff;
     font-family: system-ui, sans-serif;
+    overflow: hidden;
 }
 
 /* Back button */
@@ -310,14 +312,19 @@ async function refresh() {
 .wall-empty-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
 
 /* Body */
-.wall-body { flex: 1; overflow: hidden; padding: 12px; display: flex; flex-direction: column; }
+.wall-body {
+    overflow: hidden;
+    padding: 12px;
+    display: grid;
+    grid-template-rows: 1fr;
+}
 
 /* Grid */
 .wall-grid {
     display: grid;
     gap: 10px;
-    flex: 1;
-    min-height: 0;
+    overflow: hidden;
+    height: 100%;
 }
 
 /* Cell */

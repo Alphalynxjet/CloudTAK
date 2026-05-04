@@ -310,12 +310,11 @@
     />
 
     <Teleport to='body'>
-        <div
+        <VideoWall
             v-if='showVideoWall'
-            style='position:fixed; inset:0; z-index:9999; background:#0d0d0d;'
-        >
-            <VideoWall @close='showVideoWall = false' />
-        </div>
+            style='z-index:9999;'
+            @close='showVideoWall = false'
+        />
     </Teleport>
 </template>
 
