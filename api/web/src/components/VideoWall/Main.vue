@@ -152,8 +152,12 @@ const liveCount = computed(() => streams.value.filter(s => s.live).length);
 
 const gridStyle = computed(() => {
     const n = streams.value.length;
-    const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
-    return { gridTemplateColumns: `repeat(${cols}, 1fr)` };
+    const cols = n === 1 ? 1 : n === 2 ? 2 : n === 3 ? 3 : n === 4 ? 2 : n <= 6 ? 3 : n <= 9 ? 3 : 4;
+    const rows = Math.ceil(n / cols);
+    return {
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridTemplateRows: `repeat(${rows}, 1fr)`,
+    };
 });
 
 onMounted(async () => { await load(); timer = window.setInterval(refresh, 30_000); });
@@ -283,7 +287,6 @@ async function refresh() {
 .refresh-btn:hover { color: #fff; }
 
 /* Body */
-.wall-body { flex: 1; overflow: auto; padding: 16px; }
 
 /* Empty state */
 .wall-empty {
@@ -306,12 +309,15 @@ async function refresh() {
 }
 .wall-empty-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
 
+/* Body */
+.wall-body { flex: 1; overflow: hidden; padding: 12px; display: flex; flex-direction: column; }
+
 /* Grid */
 .wall-grid {
     display: grid;
-    gap: 12px;
-    height: 100%;
-    grid-auto-rows: 1fr;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
 }
 
 /* Cell */
@@ -320,11 +326,11 @@ async function refresh() {
     border-radius: 8px;
     overflow: hidden;
     background: #1a1a1a;
-    aspect-ratio: 16 / 9;
     display: flex;
     flex-direction: column;
     border: 1px solid rgba(255,255,255,0.06);
     transition: border-color 0.2s;
+    min-height: 0;
 }
 .wall-cell.cell-live { border-color: rgba(37, 162, 68, 0.4); }
 
@@ -397,7 +403,7 @@ async function refresh() {
 }
 
 /* Player */
-.player-wrap { position: relative; width: 100%; height: 100%; }
+.player-wrap { position: absolute; inset: 0; }
 .player-video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
 .player-buffering {
     position: absolute; bottom: 8px; right: 8px;
