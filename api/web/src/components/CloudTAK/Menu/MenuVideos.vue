@@ -308,12 +308,22 @@
         :is-system-admin='isSystemAdmin'
         @close='showRecordingsPage = false'
     />
+
+    <Teleport to='body'>
+        <div
+            v-if='showVideoWall'
+            style='position:fixed; inset:0; z-index:9999; background:#0d0d0d;'
+        >
+            <VideoWall @close='showVideoWall = false' />
+        </div>
+    </Teleport>
 </template>
 
 <script setup lang='ts'>
 import MenuTemplate from '../util/MenuTemplate.vue';
 import VideoLeaseModal from './Videos/VideoLeaseModal.vue';
 import VideoRecordingsPage from './Videos/VideoRecordingsPage.vue';
+import VideoWall from '../../VideoWall/Main.vue';
 import EmptyInfo from '../util/EmptyInfo.vue';
 import StandardItem from '../util/StandardItem.vue';
 import { server, std } from '../../../std.ts';
@@ -441,7 +451,8 @@ onMounted(async () => {
     loading.value.main = false;
 });
 
-function openVideoWall() { window.open('/video', '_blank'); }
+const showVideoWall = ref(false);
+function openVideoWall() { showVideoWall.value = true; }
 
 function expired(expiration: string | null): boolean {
     if (!expiration) return false;

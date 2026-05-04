@@ -77,7 +77,9 @@
 
 <script setup lang='ts'>
 import { ref, computed, onMounted, onUnmounted, defineComponent, h, nextTick } from 'vue';
-import { std } from '../../std.ts';
+import { std, server } from '../../std.ts';
+
+const emit = defineEmits(['close']);
 
 import type { VideoLease, VideoLeaseMetadata } from '../../types.ts';
 import { TablerLoading } from '@tak-ps/vue-tabler';
@@ -184,19 +186,20 @@ async function load() {
     loading.value = true;
     loadError.value = '';
     try {
-        const [pathsData, leasesData] = await Promise.all([
+        const [pathsData, leasesRes] = await Promise.all([
             std('/api/video/paths') as Promise<{ items: PathItem[] }>,
-            std('/api/video/lease?limit=200&page=0&order=desc&sort=created&expired=false&filter=') as Promise<{ total: number; items: VideoLease[] }>,
+            server.GET('/api/video/lease', { params: { query: { limit: 200, page: 0, order: 'desc', sort: 'created', expired: 'false', ephemeral: 'false', filter: '' } } }),
         ]);
+
+        if (leasesRes.error) throw new Error(leasesRes.error.message);
 
         const activePaths = (pathsData.items ?? []).filter(p => p.ready);
         const readerMap = new Map<string, number>(
             activePaths.map(p => [p.name, Array.isArray(p.readers) ? p.readers.length : 0])
         );
 
-        // Build lease name lookup by path UUID
         const leaseByPath = new Map<string, VideoLease>();
-        for (const l of (leasesData.items ?? [])) leaseByPath.set(l.path, l);
+        for (const l of (leasesRes.data?.items ?? [])) leaseByPath.set(l.path, l);
 
         const result: Stream[] = [];
 
@@ -223,7 +226,7 @@ async function load() {
 
         // Offline leases (not currently in active paths)
         const activePathNames = new Set(activePaths.map(p => p.name));
-        for (const lease of (leasesData.items ?? [])) {
+        for (const lease of (leasesRes.data?.items ?? [])) {
             if (!activePathNames.has(lease.path)) {
                 result.push({ lease, live: false, readers: 0, hlsUrl: null });
             }
@@ -238,7 +241,7 @@ async function load() {
     }
 }
 
-function goBack() { window.close(); if (document.referrer) window.location.href = document.referrer; else window.location.href = '/'; }
+function goBack() { emit('close'); }
 
 async function refresh() {
     try {
