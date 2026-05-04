@@ -21,6 +21,11 @@
         <!-- Grid -->
         <div class='wall-body'>
             <TablerLoading v-if='loading' label='Loading streams…' />
+            <div v-else-if='loadError' class='wall-empty'>
+                <div class='wall-empty-label' style='color:#fc8181'>Failed to load streams</div>
+                <div class='wall-empty-sub' style='color:#fc8181; max-width:500px; text-align:center;'>{{ loadError }}</div>
+                <button class='wall-empty-btn' @click='load'>Retry</button>
+            </div>
             <div v-else-if='streams.length === 0' class='wall-empty'>
                 <IconDeviceTv :size='56' stroke='0.75' class='wall-empty-icon' />
                 <div class='wall-empty-label'>No streams configured</div>
@@ -160,6 +165,7 @@ const VideoWallPlayer = defineComponent({
 // ─── Page state ───────────────────────────────────────────────────────────────
 
 const loading = ref(true);
+const loadError = ref('');
 const streams = ref<Stream[]>([]);
 let timer: number | undefined;
 
@@ -176,6 +182,7 @@ onUnmounted(() => { if (timer) clearInterval(timer); });
 
 async function load() {
     loading.value = true;
+    loadError.value = '';
     try {
         const [pathsData, leasesData] = await Promise.all([
             std('/api/video/paths') as Promise<{ items: PathItem[] }>,
@@ -224,6 +231,7 @@ async function load() {
 
         streams.value = result;
     } catch (err) {
+        loadError.value = err instanceof Error ? err.message : String(err);
         console.error('VideoWall load error:', err);
     } finally {
         loading.value = false;
