@@ -562,8 +562,6 @@ export default async function router(schema: Schema, config: Config) {
             const leaseList = await config.models.VideoLease.list({
                 limit: 1000,
                 page: 0,
-                order: 'desc',
-                sort: 'created',
                 where: undefined
             });
 
