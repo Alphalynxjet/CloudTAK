@@ -86,7 +86,6 @@ import { TablerLoading } from '@tak-ps/vue-tabler';
 import { IconDeviceTv, IconRefresh, IconUsersGroup, IconVideoOff, IconArrowLeft } from '@tabler/icons-vue';
 import Hls from 'hls.js';
 
-type PathItem = { name: string; ready: boolean; readers: unknown[] };
 type Stream = {
     lease: VideoLease;
     live: boolean;
