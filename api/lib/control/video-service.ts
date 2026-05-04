@@ -11,6 +11,7 @@ import fetch from '../fetch.js';
 import { TAKAPI, APIAuthCertificate } from '@tak-ps/node-tak';
 import fs from 'node:fs';
 import nodePath from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 const RECORDINGS_DIR = '/recordings';
 
@@ -414,15 +415,15 @@ export default class VideoServiceControl {
 
         if (secure && (!lease.stream_user || !lease.stream_pass || !lease.read_user || !lease.read_pass)) {
             await this.config.models.VideoLease.commit(lease.id, {
-                stream_user: `write${lease.id}`,
-                stream_pass: Math.random().toString(20).substr(2, 6),
-                read_user: `read${lease.id}`,
-                read_pass: Math.random().toString(20).substr(2, 6)
+                stream_user: randomBytes(6).toString('hex'),
+                stream_pass: randomBytes(10).toString('hex'),
+                read_user:   randomBytes(6).toString('hex'),
+                read_pass:   randomBytes(10).toString('hex')
             });
         } else if (secure && rotate) {
             await this.config.models.VideoLease.commit(lease.id, {
-                read_user: `read${lease.id}`,
-                read_pass: Math.random().toString(20).substr(2, 6)
+                read_user: randomBytes(6).toString('hex'),
+                read_pass: randomBytes(10).toString('hex')
             });
         } else if (!secure && (lease.stream_user || lease.stream_pass || lease.read_user || lease.read_pass)) {
             await this.config.models.VideoLease.commit(lease.id, {
