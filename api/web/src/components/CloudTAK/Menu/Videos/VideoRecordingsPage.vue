@@ -36,21 +36,61 @@
             v-if='!loading && data && data.items.length'
             class='px-3 pt-3 pb-2 d-flex flex-wrap gap-2 align-items-end border-bottom'
         >
-            <div class='d-flex flex-column gap-1' style='min-width:160px;flex:1'>
+            <div class='d-flex flex-column gap-1'>
                 <label class='form-label small mb-0 text-secondary'>From</label>
-                <input
-                    v-model='filterFrom'
-                    type='datetime-local'
-                    class='form-control form-control-sm'
-                />
+                <div class='d-flex gap-1'>
+                    <input
+                        v-model='filterFromDate'
+                        type='date'
+                        class='form-control form-control-sm'
+                    />
+                    <div class='input-group input-group-sm'>
+                        <input
+                            id='from-time'
+                            v-model='filterFromTime'
+                            type='time'
+                            step='1'
+                            class='form-control form-control-sm'
+                            style='min-width:90px'
+                        />
+                        <label
+                            for='from-time'
+                            class='btn btn-outline-secondary btn-sm px-2 mb-0'
+                            style='cursor:pointer'
+                            @click.prevent='openPicker("from-time")'
+                        >
+                            <IconClock :size='14' stroke='1.5' />
+                        </label>
+                    </div>
+                </div>
             </div>
-            <div class='d-flex flex-column gap-1' style='min-width:160px;flex:1'>
+            <div class='d-flex flex-column gap-1'>
                 <label class='form-label small mb-0 text-secondary'>To</label>
-                <input
-                    v-model='filterTo'
-                    type='datetime-local'
-                    class='form-control form-control-sm'
-                />
+                <div class='d-flex gap-1'>
+                    <input
+                        v-model='filterToDate'
+                        type='date'
+                        class='form-control form-control-sm'
+                    />
+                    <div class='input-group input-group-sm'>
+                        <input
+                            id='to-time'
+                            v-model='filterToTime'
+                            type='time'
+                            step='1'
+                            class='form-control form-control-sm'
+                            style='min-width:90px'
+                        />
+                        <label
+                            for='to-time'
+                            class='btn btn-outline-secondary btn-sm px-2 mb-0'
+                            style='cursor:pointer'
+                            @click.prevent='openPicker("to-time")'
+                        >
+                            <IconClock :size='14' stroke='1.5' />
+                        </label>
+                    </div>
+                </div>
             </div>
             <div class='d-flex flex-column gap-1' style='min-width:140px;'>
                 <label class='form-label small mb-0 text-secondary'>Sort by</label>
@@ -65,9 +105,9 @@
                 </select>
             </div>
             <button
-                v-if='filterFrom || filterTo'
+                v-if='filterFromDate || filterToDate'
                 class='btn btn-sm btn-ghost-secondary'
-                @click='filterFrom = ""; filterTo = ""'
+                @click='filterFromDate = ""; filterFromTime = ""; filterToDate = ""; filterToTime = ""'
             >
                 Clear
             </button>
@@ -209,6 +249,7 @@ import {
     IconDownload,
     IconPlayerPlay,
     IconPlayerStop,
+    IconClock,
 } from '@tabler/icons-vue';
 import {
     TablerModal,
@@ -238,11 +279,20 @@ const downloading = ref<string | null>(null);
 const playingKey = ref<string | null>(null);
 const playError = ref(false);
 const data = ref<RecordingsData | null>(null);
-const filterFrom = ref('');
-const filterTo = ref('');
+const filterFromDate = ref('');
+const filterFromTime = ref('');
+const filterToDate = ref('');
+const filterToTime = ref('');
 const sortBy = ref('date-desc');
 
 onMounted(fetchRecordings);
+
+function openPicker(id: string) {
+    const el = document.getElementById(id) as HTMLInputElement | null;
+    if (!el) return;
+    el.focus();
+    try { el.showPicker(); } catch { /* not supported in all browsers */ }
+}
 
 async function fetchRecordings() {
     loading.value = true;
@@ -259,8 +309,12 @@ async function fetchRecordings() {
 const filteredItems = computed((): RecordingItem[] => {
     if (!data.value) return [];
 
-    const from = filterFrom.value ? new Date(filterFrom.value).getTime() : null;
-    const to = filterTo.value ? new Date(filterTo.value).getTime() : null;
+    const fromStr = filterFromDate.value
+        ? `${filterFromDate.value}T${filterFromTime.value || '00:00:00'}` : null;
+    const toStr = filterToDate.value
+        ? `${filterToDate.value}T${filterToTime.value || '23:59:59'}` : null;
+    const from = fromStr ? new Date(fromStr).getTime() : null;
+    const to   = toStr   ? new Date(toStr).getTime()   : null;
 
     const items = data.value.items.map(rec => {
         const segs = rec.segments.filter(seg => {
@@ -302,10 +356,14 @@ function leaseBytes(rec: RecordingItem): number {
 }
 
 function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString(undefined, {
-        year: 'numeric', month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit'
-    });
+    const d = new Date(iso);
+    const dd   = String(d.getDate()).padStart(2, '0');
+    const mm   = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const hh   = String(d.getHours()).padStart(2, '0');
+    const min  = String(d.getMinutes()).padStart(2, '0');
+    const ss   = String(d.getSeconds()).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
 }
 
 function formatBytes(bytes: number): string {

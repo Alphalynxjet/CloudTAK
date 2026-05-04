@@ -285,9 +285,6 @@ import {
     IconX,
     IconUser,
     IconLogout,
-    IconGridDots,
-    IconWorld,
-    IconDeviceTv,
     IconLayoutGrid,
     IconLayoutList,
     IconPencil, 
@@ -299,7 +296,6 @@ import {
 } from '@tabler/icons-vue';
 import Sortable from 'sortablejs';
 import {
-    TablerDropdown,
     TablerIconButton,
     TablerInput,
     TablerNone,

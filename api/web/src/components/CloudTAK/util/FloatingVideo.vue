@@ -348,7 +348,7 @@ async function createPlayer(): Promise<void> {
             switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
                     if (!data.fatal) {
-                        setBuffering(true);
+                        scheduleBuffering();
 
                         if (player.value) {
                             player.value.startLoad();
@@ -362,7 +362,7 @@ async function createPlayer(): Promise<void> {
                     }
                 case Hls.ErrorTypes.MEDIA_ERROR:
                     if (!data.fatal) {
-                        setBuffering(true);
+                        scheduleBuffering();
 
                         if (player.value) {
                             try {
@@ -433,7 +433,7 @@ async function createPlayer(): Promise<void> {
                 videoElement.play().catch(e => console.error("Play failed", e));
             });
 
-            setBuffering(true);
+            scheduleBuffering();
         }
     } catch (err) {
         console.error('Error handling stream restart:', err);
