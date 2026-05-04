@@ -10,7 +10,7 @@ import { VideoLease_SourceType } from '../enums.js';
 import fetch from '../fetch.js';
 import { TAKAPI, APIAuthCertificate } from '@tak-ps/node-tak';
 import fs from 'node:fs';
-import path from 'node:path';
+import nodePath from 'node:path';
 
 const RECORDINGS_DIR = '/recordings';
 
@@ -847,7 +847,7 @@ export default class VideoServiceControl {
         const [, date, hh, mm, ss, frac = ''] = match;
         const microseconds = frac.padEnd(6, '0').substring(0, 6);
         const filename = `${date}_${hh}-${mm}-${ss}-${microseconds}.mp4`;
-        return path.join(RECORDINGS_DIR, leasePath, filename);
+        return nodePath.join(RECORDINGS_DIR, leasePath, filename);
     }
 
     streamRecordingSegment(leasePath: string, start: string): fs.ReadStream {
@@ -858,21 +858,38 @@ export default class VideoServiceControl {
         return fs.createReadStream(filePath);
     }
 
+    segmentFileSize(leasePath: string, start: string): number {
+        // Try exact filename match first
+        try {
+            return fs.statSync(this.recordingFilePath(leasePath, start)).size;
+        } catch { /* fall through */ }
+
+        // Fall back: scan directory for file matching date_HH-MM-SS prefix
+        // (mediamtx may omit microseconds in seg.start)
+        try {
+            const m = start.match(/(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+            if (!m) return 0;
+            const prefix = `${m[1]}_${m[2]}-${m[3]}-${m[4]}-`;
+            const dir = nodePath.join(RECORDINGS_DIR, leasePath);
+            const file = fs.readdirSync(dir).find(f => f.startsWith(prefix) && f.endsWith('.mp4'));
+            if (file) return fs.statSync(nodePath.join(dir, file)).size;
+        } catch { /* file may not exist */ }
+
+        return 0;
+    }
+
     async recordingsByPaths(paths: string[]): Promise<Array<{ path: string, segments: Array<{ start: string; size: number }> }>> {
         const results = await Promise.allSettled(
-            paths.map(async (path) => {
+            paths.map(async (leasePath) => {
                 try {
-                    const rec = await this.recordings(path);
-                    const segments = (rec.segments ?? []).map((seg: { start: string }) => {
-                        let size = 0;
-                        try {
-                            size = fs.statSync(this.recordingFilePath(path, seg.start)).size;
-                        } catch { /* file may not exist yet */ }
-                        return { start: seg.start, size };
-                    });
-                    return { path, segments };
+                    const rec = await this.recordings(leasePath);
+                    const segments = (rec.segments ?? []).map((seg: { start: string }) => ({
+                        start: seg.start,
+                        size: this.segmentFileSize(leasePath, seg.start)
+                    }));
+                    return { path: leasePath, segments };
                 } catch {
-                    return { path, segments: [] as Array<{ start: string; size: number }> };
+                    return { path: leasePath, segments: [] as Array<{ start: string; size: number }> };
                 }
             })
         );
