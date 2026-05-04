@@ -44,7 +44,6 @@ export default defineConfig(({ mode }) => {
                 input: {
                     main: path.resolve(__dirname, 'index.html'),
                     docs: path.resolve(__dirname, 'docs.html'),
-                    video: path.resolve(__dirname, 'video.html'),
                     admin: path.resolve(__dirname, 'admin.html'),
                     connection: path.resolve(__dirname, 'connection.html'),
                 },
