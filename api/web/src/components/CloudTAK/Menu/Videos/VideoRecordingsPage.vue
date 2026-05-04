@@ -38,15 +38,15 @@
                         v-model='filterFromDate'
                         type='date'
                         class='form-control form-control-sm'
-                        style='width:140px'
+                        style='width:160px'
                     />
                     <div class='d-flex align-items-center gap-1'>
-                        <select v-model='filterFromHH' class='form-select form-select-sm' style='width:66px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
+                        <select v-model='filterFromHH' class='form-select form-select-sm' style='width:100px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
                             <option value=''>HH</option>
                             <option v-for='h in hours' :key='h' :value='h'>{{ h }}</option>
                         </select>
                         <span class='text-secondary'>:</span>
-                        <select v-model='filterFromMM' class='form-select form-select-sm' style='width:66px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
+                        <select v-model='filterFromMM' class='form-select form-select-sm' style='width:100px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
                             <option value=''>MM</option>
                             <option v-for='m in minutes' :key='m' :value='m'>{{ m }}</option>
                         </select>
@@ -62,15 +62,15 @@
                         v-model='filterToDate'
                         type='date'
                         class='form-control form-control-sm'
-                        style='width:140px'
+                        style='width:160px'
                     />
                     <div class='d-flex align-items-center gap-1'>
-                        <select v-model='filterToHH' class='form-select form-select-sm' style='width:66px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
+                        <select v-model='filterToHH' class='form-select form-select-sm' style='width:100px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
                             <option value=''>HH</option>
                             <option v-for='h in hours' :key='h' :value='h'>{{ h }}</option>
                         </select>
                         <span class='text-secondary'>:</span>
-                        <select v-model='filterToMM' class='form-select form-select-sm' style='width:66px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
+                        <select v-model='filterToMM' class='form-select form-select-sm' style='width:100px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
                             <option value=''>MM</option>
                             <option v-for='m in minutes' :key='m' :value='m'>{{ m }}</option>
                         </select>
@@ -81,7 +81,7 @@
             <!-- Sort -->
             <div class='d-flex flex-column gap-1'>
                 <span class='text-secondary small'>Sort</span>
-                <select v-model='sortBy' class='form-select form-select-sm' style='width:160px'>
+                <select v-model='sortBy' class='form-select form-select-sm' style='width:180px'>
                     <option value='date-desc'>Newest first</option>
                     <option value='date-asc'>Oldest first</option>
                     <option value='size-desc'>Largest first</option>
@@ -162,12 +162,12 @@
                             </div>
                         </div>
                         <div
-                            v-if='playingKey === rec.path + seg.start && rec.lease_id'
+                            v-if='playingKey === rec.path + seg.start'
                             class='w-100'
                             style='background:#000; border-radius:4px; overflow:hidden;'
                         >
                             <video
-                                :src='playbackUrl(rec.lease_id, seg.start)'
+                                :src='playbackUrl(rec, seg.start)'
                                 controls
                                 autoplay
                                 style='width:100%; max-height:320px; display:block;'
@@ -312,9 +312,16 @@ function formatBytes(b: number): string {
     return `${(b / 1024 ** 3).toFixed(2)} GB`;
 }
 
-function playbackUrl(leaseId: number, start: string): string {
+function downloadUrl(rec: RecordingItem, start: string): string {
+    const s = encodeURIComponent(start);
+    return rec.lease_id
+        ? `/api/video/lease/${rec.lease_id}/recordings/download?start=${s}`
+        : `/api/video/path/${rec.path}/recordings/download?start=${s}`;
+}
+
+function playbackUrl(rec: RecordingItem, start: string): string {
     const token = (localStorage as Record<string, string>).token || '';
-    return `/api/video/lease/${leaseId}/recordings/download?start=${encodeURIComponent(start)}&token=${encodeURIComponent(token)}`;
+    return `${downloadUrl(rec, start)}&token=${encodeURIComponent(token)}`;
 }
 
 function togglePlay(rec: RecordingItem, start: string) {
@@ -324,19 +331,17 @@ function togglePlay(rec: RecordingItem, start: string) {
 }
 
 async function download(rec: RecordingItem, start: string) {
-    if (!rec.lease_id) { alert('Cannot download recordings from deleted leases.'); return; }
     downloading.value = rec.path + start;
     try {
-        await std(
-            `/api/video/lease/${rec.lease_id}/recordings/download?start=${encodeURIComponent(start)}`,
-            { download: `${rec.lease_name || rec.path}-${start}.mp4` }
-        );
+        await std(downloadUrl(rec, start), { download: `${rec.lease_name || rec.path}-${start}.mp4` });
     } finally { downloading.value = null; }
 }
 
 async function deleteSegment(rec: RecordingItem, start: string) {
-    if (!rec.lease_id) { alert('Cannot delete recordings from deleted leases yet.'); return; }
-    await std(`/api/video/lease/${rec.lease_id}/recordings?start=${encodeURIComponent(start)}`, { method: 'DELETE' });
+    const url = rec.lease_id
+        ? `/api/video/lease/${rec.lease_id}/recordings?start=${encodeURIComponent(start)}`
+        : `/api/video/path/${rec.path}/recordings?start=${encodeURIComponent(start)}`;
+    await std(url, { method: 'DELETE' });
     await fetchRecordings();
 }
 </script>

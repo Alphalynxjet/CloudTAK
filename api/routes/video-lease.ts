@@ -716,4 +716,55 @@ export default async function router(schema: Schema, config: Config) {
             Err.respond(err, res);
         }
     });
+
+    // Path-based endpoints for orphaned recordings (deleted lease)
+    await schema.get('/video/path/:path/recordings/download', {
+        name: 'Download Orphaned Recording Segment',
+        group: 'VideoLease',
+        description: 'Stream a recorded segment by path UUID — for recordings whose lease has been deleted',
+        params: Type.Object({ path: Type.String() }),
+        query: Type.Object({
+            start: Type.String(),
+            token: Type.Optional(Type.String())
+        }),
+        res: Type.Any()
+    }, async (req, res) => {
+        try {
+            const user = await Auth.as_user(config, req, { token: true });
+            if (user.access !== AuthUserAccess.ADMIN) throw new Err(403, null, 'Admin access required');
+
+            const fileStream = videoControl.streamRecordingSegment(req.params.path, req.query.start);
+            const filePath   = videoControl.recordingFilePath(req.params.path, req.query.start);
+            const stat       = fs.statSync(filePath);
+            const filename   = `${req.params.path}-${req.query.start}.mp4`.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+            res.setHeader('Content-Type', 'video/mp4');
+            res.setHeader('Content-Length', stat.size);
+            res.setHeader('Accept-Ranges', 'bytes');
+            res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+            fileStream.on('error', () => res.end());
+            fileStream.pipe(res);
+        } catch (err) {
+            Err.respond(err, res);
+        }
+    });
+
+    await schema.delete('/video/path/:path/recordings', {
+        name: 'Delete Orphaned Recording Segment',
+        group: 'VideoLease',
+        description: 'Delete a recorded segment by path UUID — for recordings whose lease has been deleted',
+        params: Type.Object({ path: Type.String() }),
+        query: Type.Object({ start: Type.String() }),
+        res: StandardResponse
+    }, async (req, res) => {
+        try {
+            const user = await Auth.as_user(config, req);
+            if (user.access !== AuthUserAccess.ADMIN) throw new Err(403, null, 'Admin access required');
+
+            await videoControl.deleteRecordingSegment(req.params.path, req.query.start);
+            res.json({ status: 200, message: 'Recording Segment Deleted' });
+        } catch (err) {
+            Err.respond(err, res);
+        }
+    });
 }
