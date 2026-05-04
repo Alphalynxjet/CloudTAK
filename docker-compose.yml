@@ -97,6 +97,8 @@ services:
     postgis:
         image: postgis/postgis:17-3.4-alpine
         restart: 'always'
+        volumes:
+            - .docker-postgis:/var/lib/postgresql/data
         ports:
             - 5433:5432
         environment:
