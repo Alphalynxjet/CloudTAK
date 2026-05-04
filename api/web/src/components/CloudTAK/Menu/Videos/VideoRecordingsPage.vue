@@ -132,9 +132,25 @@
             <div
                 v-for='rec in filteredItems'
                 :key='rec.path'
-                class='mb-4'
+                class='mb-2'
             >
-                <div class='d-flex align-items-center gap-2 mb-2 px-1'>
+                <div
+                    class='d-flex align-items-center gap-2 px-2 py-2 cursor-pointer rounded'
+                    style='user-select:none'
+                    @click='toggleCollapse(rec.path)'
+                >
+                    <IconChevronDown
+                        v-if='!collapsed.has(rec.path)'
+                        :size='14'
+                        stroke='2'
+                        class='text-secondary flex-shrink-0'
+                    />
+                    <IconChevronRight
+                        v-else
+                        :size='14'
+                        stroke='2'
+                        class='text-secondary flex-shrink-0'
+                    />
                     <IconVideo
                         :size='16'
                         stroke='1'
@@ -151,6 +167,7 @@
 
                 <StandardItem
                     v-for='seg in rec.segments'
+                    v-show='!collapsed.has(rec.path)'
                     :key='seg.start'
                     class='d-flex flex-column gap-2 p-2 mb-1'
                 >
@@ -250,6 +267,8 @@ import {
     IconPlayerPlay,
     IconPlayerStop,
     IconClock,
+    IconChevronDown,
+    IconChevronRight,
 } from '@tabler/icons-vue';
 import {
     TablerModal,
@@ -274,6 +293,7 @@ type RecordingsData = {
     items: RecordingItem[];
 };
 
+const collapsed = ref(new Set<string>());
 const loading = ref(true);
 const downloading = ref<string | null>(null);
 const playingKey = ref<string | null>(null);
@@ -286,6 +306,12 @@ const filterToTime = ref('');
 const sortBy = ref('date-desc');
 
 onMounted(fetchRecordings);
+
+function toggleCollapse(path: string) {
+    const s = new Set(collapsed.value);
+    s.has(path) ? s.delete(path) : s.add(path);
+    collapsed.value = s;
+}
 
 function openPicker(id: string) {
     const el = document.getElementById(id) as HTMLInputElement | null;
