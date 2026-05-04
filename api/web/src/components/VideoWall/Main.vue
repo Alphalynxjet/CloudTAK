@@ -1,121 +1,62 @@
 <template>
-    <div class='h-full w-full cloudtak-bg text-white d-flex flex-column'>
-        <!-- Header bar -->
-        <div class='d-flex align-items-center gap-3 px-4 py-3 border-bottom border-secondary border-opacity-25'>
-            <IconVideo
-                :size='28'
-                stroke='1'
-            />
-            <span class='fs-5 fw-semibold'>Video Wall</span>
-
-            <div class='ms-auto d-flex align-items-center gap-3'>
-                <span
-                    v-if='!loading && liveStreams.length'
-                    class='badge text-bg-success'
-                >
-                    {{ liveStreams.length }} Live
-                </span>
-                <TablerIconButton
-                    title='Refresh Streams'
-                    @click='refresh'
-                >
-                    <IconRefresh
-                        :size='22'
-                        stroke='1'
-                    />
-                </TablerIconButton>
+    <div class='video-wall-root'>
+        <!-- Header -->
+        <div class='wall-header'>
+            <IconDeviceTv :size='24' stroke='1' />
+            <span class='wall-title'>Video Wall</span>
+            <span v-if='liveCount' class='live-badge'>{{ liveCount }} LIVE</span>
+            <div class='wall-header-right'>
+                <span class='stream-count'>{{ streams.length }} stream{{ streams.length !== 1 ? 's' : '' }}</span>
+                <button class='refresh-btn' title='Refresh' @click='load'>
+                    <IconRefresh :size='18' stroke='1.5' />
+                </button>
             </div>
         </div>
 
-        <!-- Body -->
-        <div class='flex-grow-1 overflow-auto p-3'>
-            <TablerLoading
-                v-if='loading'
-                label='Loading Streams'
-            />
-            <TablerAlert
-                v-else-if='error'
-                :err='error'
-            />
-            <TablerNone
-                v-else-if='!liveStreams.length'
-                label='No Live Streams'
-                :create='false'
-            />
-            <div
-                v-else
-                class='video-wall-grid'
-                :class='gridClass'
-            >
+        <!-- Grid -->
+        <div class='wall-body'>
+            <TablerLoading v-if='loading' label='Loading streams…' />
+            <div v-else-if='streams.length === 0' class='wall-empty'>
+                <IconDeviceTv :size='48' stroke='0.75' class='wall-empty-icon' />
+                <div class='wall-empty-label'>No video leases found</div>
+                <div class='wall-empty-sub'>Create a lease in the Videos sidebar to get started</div>
+            </div>
+            <div v-else class='wall-grid' :style='gridStyle'>
                 <div
-                    v-for='stream in liveStreams'
-                    :key='stream.lease.id'
-                    class='video-cell d-flex flex-column rounded overflow-hidden bg-black bg-opacity-50'
-                    style='min-height: 0;'
+                    v-for='s in streams'
+                    :key='s.lease.id'
+                    class='wall-cell'
+                    :class='{ "cell-live": s.live }'
                 >
-                    <!-- Player area -->
-                    <div class='position-relative flex-grow-1' style='min-height: 0;'>
-                        <template v-if='stream.loadingMeta'>
-                            <div class='d-flex align-items-center justify-content-center h-100'>
-                                <TablerLoading label='Loading' />
-                            </div>
-                        </template>
-                        <template v-else-if='stream.metaError'>
-                            <div class='d-flex align-items-center justify-content-center h-100 text-center p-2'>
-                                <TablerAlert
-                                    :compact='true'
-                                    title='Stream Error'
-                                    :err='stream.metaError'
-                                />
-                            </div>
-                        </template>
-                        <template v-else-if='stream.hlsUrl'>
-                            <VideoWallPlayer
-                                :key='stream.lease.id'
-                                :hls-url='stream.hlsUrl'
-                                :stream-id='String(stream.lease.id)'
-                            />
-                        </template>
-                        <template v-else>
-                            <div class='d-flex align-items-center justify-content-center h-100 text-secondary small'>
-                                No HLS protocol available
-                            </div>
-                        </template>
+                    <!-- Live player -->
+                    <template v-if='s.live && s.hlsUrl'>
+                        <VideoWallPlayer
+                            :key='`player-${s.lease.id}`'
+                            :hls-url='s.hlsUrl'
+                            :stream-id='String(s.lease.id)'
+                        />
+                    </template>
 
-                        <!-- Live badge overlay -->
-                        <span
-                            class='position-absolute top-0 start-0 m-2 badge text-bg-danger'
-                            style='font-size: 0.65rem; letter-spacing: 0.05em;'
-                        >LIVE</span>
+                    <!-- Offline placeholder -->
+                    <template v-else>
+                        <div class='cell-offline'>
+                            <IconVideoOff :size='36' stroke='0.75' class='cell-offline-icon' />
+                            <div class='cell-offline-label'>{{ s.lease.name || 'Unnamed' }}</div>
+                            <div class='cell-offline-sub'>Offline</div>
+                        </div>
+                    </template>
 
-                        <!-- Viewer count overlay -->
-                        <span
-                            v-if='stream.readers !== undefined'
-                            class='position-absolute top-0 end-0 m-2 d-flex align-items-center gap-1 badge bg-black bg-opacity-75'
-                            style='font-size: 0.65rem;'
-                        >
-                            <IconUsersGroup
-                                :size='14'
-                                stroke='1.5'
-                            />
-                            {{ stream.readers }}
-                        </span>
+                    <!-- Overlay badges -->
+                    <div class='cell-badges'>
+                        <span v-if='s.live' class='badge-live'>● LIVE</span>
+                        <span v-else class='badge-offline'>OFFLINE</span>
                     </div>
-
-                    <!-- Stream name footer -->
-                    <div
-                        class='px-2 py-1 d-flex align-items-center gap-2 border-top border-secondary border-opacity-25'
-                        style='background: rgba(0,0,0,0.4); min-height: 2rem;'
-                    >
-                        <IconVideo
-                            :size='14'
-                            stroke='1.5'
-                            class='text-success flex-shrink-0'
-                        />
-                        <span
-                            class='small text-truncate'
-                            v-text='stream.lease.name || stream.lease.path'
-                        />
+                    <div class='cell-footer'>
+                        <span class='cell-name'>{{ s.lease.name || s.lease.path }}</span>
+                        <span v-if='s.live && s.readers !== undefined' class='cell-viewers'>
+                            <IconUsersGroup :size='12' stroke='1.5' />
+                            {{ s.readers }}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -127,38 +68,19 @@
 import { ref, computed, onMounted, onUnmounted, defineComponent, h, nextTick } from 'vue';
 import { std } from '../../std.ts';
 import type { VideoLease, VideoLeaseMetadata } from '../../types.ts';
-import {
-    TablerNone,
-    TablerLoading,
-    TablerAlert,
-    TablerIconButton,
-} from '@tak-ps/vue-tabler';
-import {
-    IconVideo,
-    IconRefresh,
-    IconUsersGroup,
-} from '@tabler/icons-vue';
+import { TablerLoading } from '@tak-ps/vue-tabler';
+import { IconDeviceTv, IconRefresh, IconUsersGroup, IconVideoOff } from '@tabler/icons-vue';
 import Hls from 'hls.js';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type PathItem = {
-    name: string;
-    ready: boolean;
-    readers: unknown[];
-};
-
-type LiveStream = {
+type PathItem = { name: string; ready: boolean; readers: unknown[] };
+type Stream = {
     lease: VideoLease;
+    live: boolean;
     readers: number;
     hlsUrl: string | null;
-    loadingMeta: boolean;
-    metaError: Error | null;
 };
 
-// ─── VideoWallPlayer inline component ────────────────────────────────────────
-// Isolated HLS player for a single cell; each instance manages its own Hls
-// instance independently so one failing stream doesn't affect others.
+// ─── Inline HLS player ────────────────────────────────────────────────────────
 
 const VideoWallPlayer = defineComponent({
     name: 'VideoWallPlayer',
@@ -168,340 +90,293 @@ const VideoWallPlayer = defineComponent({
     },
     setup(props) {
         const videoEl = ref<HTMLVideoElement | null>(null);
-        const player = ref<Hls | null>(null);
-        const isBuffering = ref(false);
+        const player  = ref<Hls | null>(null);
+        const buffering = ref(false);
+        let bufDebounce: number | undefined;
 
-        let retryCount = 0;
-        const maxRetries = 3;
-        let bufferInterval: number | undefined;
-        let recoveryTimeout: number | undefined;
-
-        function clearBufferMonitoring() {
-            if (bufferInterval) { clearInterval(bufferInterval); bufferInterval = undefined; }
-            if (recoveryTimeout) { clearTimeout(recoveryTimeout); recoveryTimeout = undefined; }
-            isBuffering.value = false;
+        function scheduleBuffering() {
+            clearTimeout(bufDebounce);
+            bufDebounce = window.setTimeout(() => { buffering.value = true; }, 1500);
+        }
+        function clearBuffering() {
+            clearTimeout(bufDebounce);
+            buffering.value = false;
         }
 
-        function monitorBuffer() {
-            const v = videoEl.value;
-            if (!v || v.buffered.length === 0 || v.ended) return;
-            const ahead = v.buffered.end(v.buffered.length - 1) - v.currentTime;
-            if (ahead < 2 && !isBuffering.value) {
-                isBuffering.value = true;
-                recoveryTimeout = window.setTimeout(() => {
-                    restartStream();
-                }, 10000);
-            } else if (ahead > 5 && isBuffering.value) {
-                isBuffering.value = false;
-                if (recoveryTimeout) { clearTimeout(recoveryTimeout); recoveryTimeout = undefined; }
-                if (v.paused && !v.ended) v.play().catch(() => {/* noop */});
-            }
+        function attachHandlers() {
+            const v = videoEl.value; if (!v) return;
+            v.onwaiting = () => { if (!v.ended) scheduleBuffering(); };
+            v.onstalled = () => { if (!v.ended) scheduleBuffering(); };
+            v.onplaying = () => clearBuffering();
+            v.oncanplay = () => clearBuffering();
         }
 
-        function attachVideoHandlers() {
-            const v = videoEl.value;
-            if (!v) return;
-            v.onwaiting = () => { if (!v.ended) isBuffering.value = true; };
-            v.onstalled = () => { if (!v.ended) isBuffering.value = true; };
-            v.onplaying = () => { isBuffering.value = false; };
-            v.oncanplay = () => { if (isBuffering.value) isBuffering.value = false; };
-        }
-
-        function destroyPlayer() {
-            clearBufferMonitoring();
+        function destroy() {
+            clearBuffering();
             if (player.value) { player.value.destroy(); player.value = null; }
         }
 
-        function restartStream() {
-            const hls = player.value;
-            if (!hls) return;
-            clearBufferMonitoring();
-            try {
-                hls.recoverMediaError();
-                hls.stopLoad();
-                hls.loadSource(hls.url!);
-                isBuffering.value = true;
-                hls.once(Hls.Events.LEVEL_LOADED, () => {
-                    const v = hls.media;
-                    if (v) {
-                        if (Number.isFinite(v.duration) && v.duration > 0) {
-                            v.currentTime = v.duration;
-                        }
-                        hls.startLoad();
-                        v.play().catch(() => {/* noop */});
-                    }
-                    bufferInterval = window.setInterval(monitorBuffer, 500);
-                    isBuffering.value = false;
-                });
-            } catch {
-                handleError(new Error('Stream restart failed'));
-            }
-        }
-
-        function handleError(err: Error) {
-            destroyPlayer();
-            if (retryCount < maxRetries) {
-                const delay = 1000 * Math.pow(2, retryCount);
-                retryCount++;
-                setTimeout(() => initPlayer(), delay);
-            } else {
-                console.error(`VideoWall: stream ${props.streamId} exceeded max retries`, err);
-            }
-        }
-
-        function initPlayer() {
+        function init() {
             if (!videoEl.value || !Hls.isSupported()) return;
-            destroyPlayer();
-
+            destroy();
             const rawUrl = props.hlsUrl.replace(/\{\{mode\}\}/g, 'read');
             const url = new URL(rawUrl);
-
-            attachVideoHandlers();
-
+            attachHandlers();
             const hls = new Hls({
-                enableWorker: false,
-                lowLatencyMode: false,
-                debug: false,
-                backBufferLength: 90,
-                maxBufferLength: 30,
-                maxMaxBufferLength: 600,
-                liveSyncDurationCount: 3,
-                liveMaxLatencyDurationCount: 10,
+                enableWorker: false, lowLatencyMode: false, debug: false,
+                backBufferLength: 90, maxBufferLength: 30,
                 xhrSetup(xhr) {
-                    if (url.username && url.password) {
+                    if (url.username && url.password)
                         xhr.setRequestHeader('Authorization', 'Basic ' + btoa(`${url.username}:${url.password}`));
-                    }
                 },
             });
-
             player.value = hls;
             hls.attachMedia(videoEl.value);
-
-            hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-                hls.loadSource(url.toString());
-            });
-
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                videoEl.value?.play().catch(() => {/* autoplay blocked */});
-                bufferInterval = window.setInterval(monitorBuffer, 500);
-            });
-
-            hls.on(Hls.Events.ERROR, (_evt, data) => {
-                if (!data.fatal) {
-                    if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                        hls.recoverMediaError();
-                    } else {
-                        hls.startLoad();
-                    }
-                    return;
-                }
-                if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                    try { hls.recoverMediaError(); } catch { handleError(data.error ?? new Error('media error')); }
-                } else {
-                    handleError(data.error ?? new Error('fatal hls error'));
-                }
+            hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(url.toString()));
+            hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.value?.play().catch(() => {}));
+            hls.on(Hls.Events.ERROR, (_e, d) => {
+                if (!d.fatal) { hls.startLoad(); return; }
+                try { hls.recoverMediaError(); } catch { destroy(); }
             });
         }
 
-        onMounted(async () => { await nextTick(); initPlayer(); });
-        onUnmounted(() => destroyPlayer());
+        onMounted(async () => { await nextTick(); init(); });
+        onUnmounted(() => destroy());
 
-        return () =>
-            h('div', { class: 'position-relative w-100 h-100' }, [
-                h('video', {
-                    ref: videoEl,
-                    class: 'w-100 h-100',
-                    style: 'display:block; object-fit:contain;',
-                    controls: true,
-                    autoplay: true,
-                    muted: true,
-                    playsinline: true,
-                }),
-                isBuffering.value
-                    ? h('div', {
-                        class: 'position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center',
-                        style: 'background:rgba(0,0,0,0.6); pointer-events:none;',
-                    }, [
-                        h('span', { class: 'text-white small' }, 'Buffering…'),
-                    ])
-                    : null,
-            ]);
+        return () => h('div', { class: 'player-wrap' }, [
+            h('video', { ref: videoEl, class: 'player-video', controls: true, autoplay: true, muted: true, playsinline: true }),
+            buffering.value ? h('div', { class: 'player-buffering' }, [h('span', {}, 'Buffering…')]) : null,
+        ]);
     },
 });
 
-// ─── VideoWall page state ─────────────────────────────────────────────────────
+// ─── Page state ───────────────────────────────────────────────────────────────
 
 const loading = ref(true);
-const error = ref<Error | undefined>();
-const liveStreams = ref<LiveStream[]>([]);
-let refreshTimer: number | undefined;
+const streams = ref<Stream[]>([]);
+let timer: number | undefined;
 
-const gridClass = computed(() => {
-    const n = liveStreams.value.length;
-    if (n <= 1) return 'grid-cols-1';
-    if (n <= 4) return 'grid-cols-2';
-    return 'grid-cols-3';
+const liveCount = computed(() => streams.value.filter(s => s.live).length);
+
+const gridStyle = computed(() => {
+    const n = streams.value.length;
+    const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+    return { gridTemplateColumns: `repeat(${cols}, 1fr)` };
 });
 
-onMounted(async () => {
-    await load();
-    refreshTimer = window.setInterval(refreshPaths, 30_000);
-});
-
-onUnmounted(() => {
-    if (refreshTimer) clearInterval(refreshTimer);
-});
+onMounted(async () => { await load(); timer = window.setInterval(refresh, 30_000); });
+onUnmounted(() => { if (timer) clearInterval(timer); });
 
 async function load() {
     loading.value = true;
-    error.value = undefined;
     try {
         const [pathsData, leasesData] = await Promise.all([
-            std('/api/video/paths') as Promise<{ pageCount: number; itemCount: number; items: PathItem[] }>,
-            std('/api/video/lease?limit=200&page=0&order=desc&sort=created&expired=false&ephemeral=false&filter=') as Promise<{ total: number; items: VideoLease[] }>,
+            std('/api/video/paths') as Promise<{ items: PathItem[] }>,
+            std('/api/video/lease?limit=200&page=0&order=desc&sort=created&expired=false&ephemeral=false&filter=') as Promise<{ items: VideoLease[] }>,
         ]);
 
-        const readyPaths = new Set(
-            (pathsData.items ?? []).filter(p => p.ready).map(p => p.name)
+        const readySet = new Set((pathsData.items ?? []).filter(p => p.ready).map(p => p.name));
+        const readerMap = new Map<string, number>(
+            (pathsData.items ?? []).map(p => [p.name, Array.isArray(p.readers) ? p.readers.length : 0])
         );
 
-        // Build a map of path-name -> reader count from the paths response
-        const readerCounts = new Map<string, number>(
-            (pathsData.items ?? []).filter(p => p.ready).map(p => [p.name, Array.isArray(p.readers) ? p.readers.length : 0])
-        );
+        const leases = leasesData.items ?? [];
+        // Sort: live first, then alphabetical
+        leases.sort((a, b) => {
+            const al = readySet.has(a.path) ? 1 : 0;
+            const bl = readySet.has(b.path) ? 1 : 0;
+            if (al !== bl) return bl - al;
+            return (a.name || '').localeCompare(b.name || '');
+        });
 
-        const liveLeases = (leasesData.items ?? []).filter(l => l.path && readyPaths.has(l.path));
-
-        // Initialise stream entries so the grid shows immediately
-        liveStreams.value = liveLeases.map(lease => ({
-            lease,
-            readers: readerCounts.get(lease.path) ?? 0,
-            hlsUrl: null,
-            loadingMeta: true,
-            metaError: null,
-        }));
-
-        loading.value = false;
-
-        // Fetch HLS metadata for each live stream in parallel
-        await Promise.all(
-            liveStreams.value.map((stream, idx) => fetchMeta(idx))
-        );
-    } catch (err) {
-        error.value = err instanceof Error ? err : new Error(String(err));
-        loading.value = false;
-    }
-}
-
-async function fetchMeta(idx: number) {
-    const stream = liveStreams.value[idx];
-    if (!stream) return;
-
-    try {
-        const meta = await std(`/api/video/lease/${stream.lease.id}/metadata`) as VideoLeaseMetadata;
-        const rawUrl = meta?.protocols?.hls?.url;
-        liveStreams.value[idx] = {
-            ...stream,
-            loadingMeta: false,
-            hlsUrl: rawUrl ? rawUrl.replace(/\{\{mode\}\}/g, 'read') : null,
-        };
-    } catch (err) {
-        liveStreams.value[idx] = {
-            ...stream,
-            loadingMeta: false,
-            metaError: err instanceof Error ? err : new Error(String(err)),
-        };
-    }
-}
-
-// Called by the auto-refresh timer — only adds/removes streams, doesn't reload metadata for existing ones
-async function refreshPaths() {
-    try {
-        const [pathsData, leasesData] = await Promise.all([
-            std('/api/video/paths') as Promise<{ pageCount: number; itemCount: number; items: PathItem[] }>,
-            std('/api/video/lease?limit=200&page=0&order=desc&sort=created&expired=false&ephemeral=false&filter=') as Promise<{ total: number; items: VideoLease[] }>,
-        ]);
-
-        const readyPaths = new Set(
-            (pathsData.items ?? []).filter(p => p.ready).map(p => p.name)
-        );
-        const readerCounts = new Map<string, number>(
-            (pathsData.items ?? []).filter(p => p.ready).map(p => [p.name, Array.isArray(p.readers) ? p.readers.length : 0])
-        );
-
-        const liveLeases = (leasesData.items ?? []).filter(l => l.path && readyPaths.has(l.path));
-        const existingIds = new Set(liveStreams.value.map(s => s.lease.id));
-        const incomingIds = new Set(liveLeases.map(l => l.id));
-
-        // Update reader counts on existing streams
-        liveStreams.value = liveStreams.value
-            .filter(s => incomingIds.has(s.lease.id))
-            .map(s => ({ ...s, readers: readerCounts.get(s.lease.path) ?? s.readers }));
-
-        // Add newly live streams
-        const newLeases = liveLeases.filter(l => !existingIds.has(l.id));
-        const newStreams: LiveStream[] = newLeases.map(lease => ({
-            lease,
-            readers: readerCounts.get(lease.path) ?? 0,
-            hlsUrl: null,
-            loadingMeta: true,
-            metaError: null,
-        }));
-
-        if (newStreams.length) {
-            const startIdx = liveStreams.value.length;
-            liveStreams.value = [...liveStreams.value, ...newStreams];
-            await Promise.all(newStreams.map((_, i) => fetchMeta(startIdx + i)));
+        const result: Stream[] = [];
+        for (const lease of leases) {
+            const live = readySet.has(lease.path);
+            let hlsUrl: string | null = null;
+            if (live) {
+                try {
+                    const meta = await std(`/api/video/lease/${lease.id}/metadata`) as VideoLeaseMetadata;
+                    hlsUrl = meta?.protocols?.hls?.url?.replace(/\{\{mode\}\}/g, 'read') ?? null;
+                } catch { /* stream metadata unavailable */ }
+            }
+            result.push({ lease, live, readers: readerMap.get(lease.path) ?? 0, hlsUrl });
         }
-    } catch {
-        // Silently ignore refresh errors — the existing streams remain visible
+        streams.value = result;
+    } catch (err) {
+        console.error('VideoWall load error:', err);
+    } finally {
+        loading.value = false;
     }
 }
 
 async function refresh() {
-    await load();
+    try {
+        const [pathsData] = await Promise.all([
+            std('/api/video/paths') as Promise<{ items: PathItem[] }>,
+        ]);
+        const readySet = new Set((pathsData.items ?? []).filter(p => p.ready).map(p => p.name));
+        const readerMap = new Map<string, number>(
+            (pathsData.items ?? []).map(p => [p.name, Array.isArray(p.readers) ? p.readers.length : 0])
+        );
+        streams.value = streams.value.map(s => ({
+            ...s,
+            live: readySet.has(s.lease.path),
+            readers: readerMap.get(s.lease.path) ?? s.readers,
+        }));
+    } catch { /* ignore */ }
 }
 </script>
 
 <style scoped>
-.video-wall-grid {
+.video-wall-root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #0d0d0d;
+    color: #fff;
+    font-family: system-ui, sans-serif;
+}
+
+/* Header */
+.wall-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    flex-shrink: 0;
+}
+.wall-title { font-size: 1.1rem; font-weight: 600; }
+.live-badge {
+    background: #25a244;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.05em;
+}
+.wall-header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.stream-count { font-size: 0.8rem; color: rgba(255,255,255,0.45); }
+.refresh-btn {
+    background: none; border: none; color: rgba(255,255,255,0.5);
+    cursor: pointer; padding: 4px; display: flex; align-items: center;
+    border-radius: 4px; transition: color 0.15s;
+}
+.refresh-btn:hover { color: #fff; }
+
+/* Body */
+.wall-body { flex: 1; overflow: auto; padding: 16px; }
+
+/* Empty state */
+.wall-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; gap: 12px; color: rgba(255,255,255,0.3);
+}
+.wall-empty-icon { opacity: 0.3; }
+.wall-empty-label { font-size: 1.1rem; font-weight: 500; }
+.wall-empty-sub { font-size: 0.85rem; }
+
+/* Grid */
+.wall-grid {
     display: grid;
-    gap: 0.75rem;
+    gap: 12px;
     height: 100%;
     grid-auto-rows: 1fr;
 }
 
-.grid-cols-1 {
-    grid-template-columns: 1fr;
-}
-
-.grid-cols-2 {
-    grid-template-columns: repeat(2, 1fr);
-}
-
-.grid-cols-3 {
-    grid-template-columns: repeat(3, 1fr);
-}
-
-@media (max-width: 768px) {
-    .grid-cols-2,
-    .grid-cols-3 {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (min-width: 769px) and (max-width: 1200px) {
-    .grid-cols-3 {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-.video-cell {
+/* Cell */
+.wall-cell {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #1a1a1a;
     aspect-ratio: 16 / 9;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: border-color 0.2s;
+}
+.wall-cell.cell-live { border-color: rgba(37, 162, 68, 0.4); }
+
+/* Offline placeholder */
+.cell-offline {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #141414;
+}
+.cell-offline-icon { opacity: 0.2; }
+.cell-offline-label { font-size: 0.9rem; font-weight: 500; color: rgba(255,255,255,0.5); }
+.cell-offline-sub { font-size: 0.75rem; color: rgba(255,255,255,0.25); }
+
+/* Badges */
+.cell-badges {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+}
+.badge-live {
+    background: #e53e3e;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
+}
+.badge-offline {
+    background: rgba(0,0,0,0.5);
+    color: rgba(255,255,255,0.35);
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
 }
 
-.video-wall-grid.grid-cols-1 .video-cell {
-    aspect-ratio: unset;
-    min-height: 60vh;
+/* Footer */
+.cell-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 5px 10px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.75));
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.cell-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+}
+.cell-viewers {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.6);
+    flex-shrink: 0;
+}
+
+/* Player */
+.player-wrap { position: relative; width: 100%; height: 100%; }
+.player-video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+.player-buffering {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.6);
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.7);
+    pointer-events: none;
 }
 </style>

@@ -36,7 +36,7 @@
 
             <TablerIconButton
                 title='Video Wall'
-                @click='router.push("/video")'
+                @click='openVideoWall'
             >
                 <IconDeviceTv
                     :size='32'
@@ -440,6 +440,8 @@ onMounted(async () => {
 
     loading.value.main = false;
 });
+
+function openVideoWall() { window.open('/video', '_blank'); }
 
 function expired(expiration: string | null): boolean {
     if (!expiration) return false;
