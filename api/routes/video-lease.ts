@@ -357,7 +357,7 @@ export default async function router(schema: Schema, config: Config) {
                 throw new Err(401, null, 'Unauthorized');
             }
 
-            const protocols = await videoControl.protocols(lease)
+            const protocols = await videoControl.protocols(lease, ProtocolPopulation.READ)
 
             try {
                 res.json({
