@@ -404,7 +404,7 @@ async function refresh() {
 
 /* Player */
 .player-wrap { position: absolute; inset: 0; }
-.player-video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+.player-video { width: 100%; height: 100%; display: block; object-fit: cover; background: #000; }
 .player-buffering {
     position: absolute; bottom: 8px; right: 8px;
     background: rgba(0,0,0,0.55);
