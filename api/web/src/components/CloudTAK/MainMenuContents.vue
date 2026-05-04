@@ -242,66 +242,6 @@
             v-else-if='["home", "home-menu"].includes(String(route.name))'
         >
             <div class='d-flex justify-content-center mb-2'>
-                <TablerDropdown
-                    position='right'
-                >
-                    <template #default>
-                        <TablerIconButton
-                            title='Application Switcher'
-                            class='cloudtak-hover'
-                            :hover='false'
-                        >
-                            <IconGridDots
-                                :size='32'
-                                stroke='1'
-                            />
-                        </TablerIconButton>
-                    </template>
-                    <template #dropdown>
-                        <div class='d-flex flex-column gap-1'>
-                            <template v-if='appSwitcherApplications.length'>
-                                <div
-                                    v-for='application in appSwitcherApplications'
-                                    :key='application.url'
-                                    class='px-2 py-2 d-flex align-items-center cloudtak-hover rounded cursor-pointer'
-                                    @click='external(application.url)'
-                                >
-                                    <img
-                                        v-if='application.icon'
-                                        :src='application.icon'
-                                        :alt='`${application.name} logo`'
-                                        class='app-switcher-logo'
-                                    >
-                                    <IconWorld
-                                        v-else
-                                        size='32'
-                                        stroke='1'
-                                    />
-                                    <div class='mx-2'>
-                                        {{ application.name }}
-                                    </div>
-                                </div>
-
-                                <div class='dropdown-divider my-1' />
-                            </template>
-
-                            <div
-                                class='px-2 py-2 d-flex align-items-center cloudtak-hover rounded cursor-pointer'
-                                @click='external("/video")'
-                            >
-                                <IconDeviceTv
-                                    size='32'
-                                    stroke='1'
-                                />
-                                <div class='mx-2'>
-                                    Video Wall
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </TablerDropdown>
-            </div>
-            <div class='d-flex justify-content-center mb-2'>
                 <div class='position-relative'>
                     <img
                         v-tooltip='"Return Home"'

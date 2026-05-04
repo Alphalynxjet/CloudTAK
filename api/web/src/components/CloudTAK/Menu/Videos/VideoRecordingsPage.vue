@@ -19,12 +19,58 @@
                 <span
                     v-if='!loading && data'
                     class='text-secondary small'
-                >{{ data.total_segments }} segment{{ data.total_segments !== 1 ? 's' : '' }}</span>
+                >
+                    {{ filteredSegmentCount }} segment{{ filteredSegmentCount !== 1 ? 's' : '' }}
+                    &nbsp;·&nbsp;
+                    {{ formatBytes(filteredTotalBytes) }} used
+                </span>
                 <TablerRefreshButton
                     :loading='loading'
                     @click='fetchRecordings'
                 />
             </div>
+        </div>
+
+        <!-- Filters & Sort -->
+        <div
+            v-if='!loading && data && data.items.length'
+            class='px-3 pt-3 pb-2 d-flex flex-wrap gap-2 align-items-end border-bottom'
+        >
+            <div class='d-flex flex-column gap-1' style='min-width:160px;flex:1'>
+                <label class='form-label small mb-0 text-secondary'>From</label>
+                <input
+                    v-model='filterFrom'
+                    type='datetime-local'
+                    class='form-control form-control-sm'
+                />
+            </div>
+            <div class='d-flex flex-column gap-1' style='min-width:160px;flex:1'>
+                <label class='form-label small mb-0 text-secondary'>To</label>
+                <input
+                    v-model='filterTo'
+                    type='datetime-local'
+                    class='form-control form-control-sm'
+                />
+            </div>
+            <div class='d-flex flex-column gap-1' style='min-width:140px;'>
+                <label class='form-label small mb-0 text-secondary'>Sort by</label>
+                <select
+                    v-model='sortBy'
+                    class='form-select form-select-sm'
+                >
+                    <option value='date-desc'>Date (newest first)</option>
+                    <option value='date-asc'>Date (oldest first)</option>
+                    <option value='size-desc'>Size (largest first)</option>
+                    <option value='size-asc'>Size (smallest first)</option>
+                </select>
+            </div>
+            <button
+                v-if='filterFrom || filterTo'
+                class='btn btn-sm btn-ghost-secondary'
+                @click='filterFrom = ""; filterTo = ""'
+            >
+                Clear
+            </button>
         </div>
 
         <TablerLoading v-if='loading' />
@@ -33,13 +79,18 @@
             label='No Recordings'
             :create='false'
         />
+        <TablerNone
+            v-else-if='filteredItems.length === 0'
+            label='No recordings in selected time range'
+            :create='false'
+        />
         <div
             v-else
             class='modal-body'
-            style='max-height: 70vh; overflow-y: auto;'
+            style='max-height: 65vh; overflow-y: auto;'
         >
             <div
-                v-for='rec in data.items'
+                v-for='rec in filteredItems'
                 :key='rec.path'
                 class='mb-4'
             >
@@ -51,6 +102,7 @@
                     />
                     <span class='fw-semibold'>{{ rec.lease_name || 'Deleted Lease' }}</span>
                     <span class='text-secondary small'>{{ rec.segments.length }} segment{{ rec.segments.length !== 1 ? 's' : '' }}</span>
+                    <span class='text-secondary small'>· {{ formatBytes(leaseBytes(rec)) }}</span>
                     <span
                         v-if='!rec.lease_name'
                         class='badge bg-red text-white'
@@ -74,6 +126,10 @@
                         </div>
                         <div class='d-flex flex-column flex-grow-1'>
                             <div class='fw-bold small'>{{ formatDate(seg.start) }}</div>
+                            <div
+                                v-if='seg.size'
+                                class='text-secondary small'
+                            >{{ formatBytes(seg.size) }}</div>
                         </div>
                         <div class='d-flex btn-list'>
                             <TablerIconButton
@@ -144,7 +200,7 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { std } from '../../../../std.ts';
 import StandardItem from '../../util/StandardItem.vue';
 import {
@@ -165,7 +221,7 @@ import {
 
 const emit = defineEmits(['close']);
 
-type Segment = { start: string };
+type Segment = { start: string; end?: string; size?: number };
 type RecordingItem = {
     path: string;
     lease_id: number | null;
@@ -182,6 +238,9 @@ const downloading = ref<string | null>(null);
 const playingKey = ref<string | null>(null);
 const playError = ref(false);
 const data = ref<RecordingsData | null>(null);
+const filterFrom = ref('');
+const filterTo = ref('');
+const sortBy = ref('date-desc');
 
 onMounted(fetchRecordings);
 
@@ -197,11 +256,64 @@ async function fetchRecordings() {
     }
 }
 
+const filteredItems = computed((): RecordingItem[] => {
+    if (!data.value) return [];
+
+    const from = filterFrom.value ? new Date(filterFrom.value).getTime() : null;
+    const to = filterTo.value ? new Date(filterTo.value).getTime() : null;
+
+    const items = data.value.items.map(rec => {
+        const segs = rec.segments.filter(seg => {
+            const t = new Date(seg.start).getTime();
+            if (from && t < from) return false;
+            if (to && t > to) return false;
+            return true;
+        });
+
+        segs.sort((a, b) => {
+            const ta = new Date(a.start).getTime();
+            const tb = new Date(b.start).getTime();
+            const sa = a.size ?? 0;
+            const sb = b.size ?? 0;
+            if (sortBy.value === 'date-desc') return tb - ta;
+            if (sortBy.value === 'date-asc') return ta - tb;
+            if (sortBy.value === 'size-desc') return sb - sa;
+            if (sortBy.value === 'size-asc') return sa - sb;
+            return 0;
+        });
+
+        return { ...rec, segments: segs };
+    }).filter(rec => rec.segments.length > 0);
+
+    return items;
+});
+
+const filteredSegmentCount = computed(() =>
+    filteredItems.value.reduce((s, r) => s + r.segments.length, 0)
+);
+
+const filteredTotalBytes = computed(() =>
+    filteredItems.value.reduce((s, r) =>
+        s + r.segments.reduce((ss, seg) => ss + (seg.size ?? 0), 0), 0)
+);
+
+function leaseBytes(rec: RecordingItem): number {
+    return rec.segments.reduce((s, seg) => s + (seg.size ?? 0), 0);
+}
+
 function formatDate(iso: string): string {
     return new Date(iso).toLocaleString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric',
         hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
+}
+
+function formatBytes(bytes: number): string {
+    if (!bytes) return '—';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 function playbackUrl(leaseId: number, start: string): string {
@@ -212,11 +324,7 @@ function playbackUrl(leaseId: number, start: string): string {
 function togglePlay(rec: RecordingItem, start: string) {
     const key = rec.path + start;
     playError.value = false;
-    if (playingKey.value === key) {
-        playingKey.value = null;
-    } else {
-        playingKey.value = key;
-    }
+    playingKey.value = playingKey.value === key ? null : key;
 }
 
 async function download(rec: RecordingItem, start: string) {

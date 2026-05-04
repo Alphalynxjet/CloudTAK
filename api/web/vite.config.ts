@@ -55,7 +55,7 @@ export default defineConfig(({ mode }) => {
             proxy: {
                 '/api': {
                     ws: true,
-                    target: 'http://localhost:5001',
+                    target: process.env.CLOUDTAK_API_TARGET || 'http://localhost:5001',
                     changeOrigin: true,
                 }
             }

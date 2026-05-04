@@ -197,14 +197,11 @@ const active = ref();
 
 // Buffer monitoring state
 const isBuffering = ref(false);
-const bufferCheckInterval = ref<number | undefined>();
+const bufferDebounceTimer = ref<number | undefined>();
 const bufferRecoveryTimeout = ref<number | undefined>();
 
-// Buffer monitoring configuration
-const BUFFER_LOW_THRESHOLD = 2; // Pause when buffer falls below 2 seconds
-const BUFFER_RECOVERY_THRESHOLD = 5; // Resume when buffer recovers to 5+ seconds
-const BUFFER_CHECK_INTERVAL_MS = 500; // Check buffer every 500ms
-const BUFFER_RECOVERY_TIMEOUT_MS = 10000; // Escalate if buffering lasts too long
+const BUFFER_DEBOUNCE_MS = 1500;       // only show overlay after stalling this long
+const BUFFER_RECOVERY_TIMEOUT_MS = 10000;
 
 // Computed title - uses stream metadata name if available, falls back to prop
 const title = computed(() => {
@@ -215,45 +212,6 @@ const title = computed(() => {
     }
 });
 
-/**
- * Monitor video buffer levels and pause/resume playback as needed
- * Prevents reaching the end of buffer which causes refresh loops
- */
-function monitorBuffer(): void {
-    const video = videoTag.value;
-    if (!video) return;
-
-    try {
-        const buffered = video.buffered;
-        if (buffered.length === 0) {
-            if (isBuffering.value && !video.ended) return;
-            return;
-        }
-
-        const currentTime = video.currentTime;
-        const bufferedEnd = buffered.end(buffered.length - 1);
-        const bufferAhead = bufferedEnd - currentTime;
-
-        // If buffer is low (less than threshold), show buffering overlay
-        if (bufferAhead < BUFFER_LOW_THRESHOLD && !isBuffering.value && !video.ended) {
-            console.log(`Buffer running low (${bufferAhead.toFixed(2)}s), waiting for more data...`);
-            setBuffering(true);
-        }
-
-        // If buffer has recovered (more than threshold), resume
-        if (bufferAhead > BUFFER_RECOVERY_THRESHOLD && isBuffering.value) {
-            console.log(`Buffer recovered (${bufferAhead.toFixed(2)}s), resuming playback...`);
-            setBuffering(false);
-
-            if (video.paused && !video.ended) {
-                video.play().catch(e => console.error("Failed to resume video playback after buffering:", e));
-            }
-        }
-    } catch (err) {
-        console.error('Error monitoring buffer:', err);
-    }
-}
-
 function clearBufferRecoveryTimeout(): void {
     if (bufferRecoveryTimeout.value) {
         clearTimeout(bufferRecoveryTimeout.value);
@@ -261,61 +219,46 @@ function clearBufferRecoveryTimeout(): void {
     }
 }
 
-function setBuffering(buffering: boolean): void {
-    isBuffering.value = buffering;
-
-    if (!buffering) {
-        clearBufferRecoveryTimeout();
-        return;
+function clearBufferDebounce(): void {
+    if (bufferDebounceTimer.value) {
+        clearTimeout(bufferDebounceTimer.value);
+        bufferDebounceTimer.value = undefined;
     }
-
-    clearBufferRecoveryTimeout();
-    bufferRecoveryTimeout.value = window.setTimeout(() => {
-        if (!isBuffering.value) return;
-
-        console.warn('Buffering did not recover in time, attempting stream restart');
-        handleStreamRestart();
-    }, BUFFER_RECOVERY_TIMEOUT_MS);
 }
 
-function clearBufferMonitoring(): void {
-    if (bufferCheckInterval.value) {
-        clearInterval(bufferCheckInterval.value);
-        bufferCheckInterval.value = undefined;
-    }
+function scheduleBuffering(): void {
+    clearBufferDebounce();
+    bufferDebounceTimer.value = window.setTimeout(() => {
+        if (isBuffering.value) return;
+        isBuffering.value = true;
+        clearBufferRecoveryTimeout();
+        bufferRecoveryTimeout.value = window.setTimeout(() => {
+            if (!isBuffering.value) return;
+            console.warn('Buffering did not recover in time, attempting stream restart');
+            handleStreamRestart();
+        }, BUFFER_RECOVERY_TIMEOUT_MS);
+    }, BUFFER_DEBOUNCE_MS);
+}
 
+function clearBuffering(): void {
+    clearBufferDebounce();
     clearBufferRecoveryTimeout();
     isBuffering.value = false;
 }
 
-function startBufferMonitoring(): void {
-    clearBufferMonitoring();
-    bufferCheckInterval.value = window.setInterval(monitorBuffer, BUFFER_CHECK_INTERVAL_MS);
+function clearBufferMonitoring(): void {
+    clearBuffering();
 }
 
 function attachVideoEventHandlers(): void {
     const video = videoTag.value;
     if (!video) return;
 
-    video.onwaiting = () => {
-        if (!video.ended) setBuffering(true);
-    };
-
-    video.onstalled = () => {
-        if (!video.ended) setBuffering(true);
-    };
-
-    video.onplaying = () => {
-        setBuffering(false);
-    };
-
-    video.oncanplay = () => {
-        if (isBuffering.value) setBuffering(false);
-    };
-
-    video.onerror = () => {
-        setBuffering(false);
-    };
+    video.onwaiting = () => { if (!video.ended) scheduleBuffering(); };
+    video.onstalled = () => { if (!video.ended) scheduleBuffering(); };
+    video.onplaying = () => { clearBuffering(); };
+    video.oncanplay = () => { clearBuffering(); };
+    video.onerror   = () => { clearBuffering(); };
 }
 
 // Cleanup when component is unmounted
@@ -393,9 +336,6 @@ async function createPlayer(): Promise<void> {
         player.value.on(Hls.Events.MANIFEST_PARSED, async () => {
             try {
                 if (videoTag.value) await videoTag.value.play();
-                
-                // Start buffer monitoring interval
-                startBufferMonitoring();
             } catch (err) {
                 console.error("Error playing video:", err);
             }
@@ -491,7 +431,6 @@ async function createPlayer(): Promise<void> {
 
                 hls.startLoad();
                 videoElement.play().catch(e => console.error("Play failed", e));
-                startBufferMonitoring();
             });
 
             setBuffering(true);

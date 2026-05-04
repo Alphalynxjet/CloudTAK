@@ -858,19 +858,26 @@ export default class VideoServiceControl {
         return fs.createReadStream(filePath);
     }
 
-    async recordingsByPaths(paths: string[]): Promise<Array<{ path: string, segments: Array<{ start: string }> }>> {
+    async recordingsByPaths(paths: string[]): Promise<Array<{ path: string, segments: Array<{ start: string; size: number }> }>> {
         const results = await Promise.allSettled(
             paths.map(async (path) => {
                 try {
                     const rec = await this.recordings(path);
-                    return { path, segments: rec.segments ?? [] };
+                    const segments = (rec.segments ?? []).map((seg: { start: string }) => {
+                        let size = 0;
+                        try {
+                            size = fs.statSync(this.recordingFilePath(path, seg.start)).size;
+                        } catch { /* file may not exist yet */ }
+                        return { start: seg.start, size };
+                    });
+                    return { path, segments };
                 } catch {
-                    return { path, segments: [] as Array<{ start: string }> };
+                    return { path, segments: [] as Array<{ start: string; size: number }> };
                 }
             })
         );
         return results
-            .filter((r): r is PromiseFulfilledResult<{ path: string; segments: Array<{ start: string }> }> => r.status === 'fulfilled')
+            .filter((r): r is PromiseFulfilledResult<{ path: string; segments: Array<{ start: string; size: number }> }> => r.status === 'fulfilled')
             .map(r => r.value)
             .filter(r => r.segments.length > 0);
     }

@@ -34,6 +34,16 @@
                 />
             </TablerIconButton>
 
+            <TablerIconButton
+                title='Video Wall'
+                @click='router.push("/video")'
+            >
+                <IconDeviceTv
+                    :size='32'
+                    stroke='1'
+                />
+            </TablerIconButton>
+
             <template v-if='mode === "lease"'>
                 <TablerRefreshButton
                     :loading='loading.main'
@@ -329,6 +339,7 @@ import {
     IconServer2,
     IconVideoPlus,
     IconHistory,
+    IconDeviceTv,
     IconCar,
     IconWalk,
     IconDrone,
