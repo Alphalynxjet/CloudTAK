@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, computed, onMounted, onUnmounted, defineComponent, h, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, defineComponent, nextTick } from 'vue';
 import { std } from '../../std.ts';
 
 const emit = defineEmits(['close']);
@@ -101,32 +101,13 @@ const VideoWallPlayer = defineComponent({
         hlsUrl: { type: String, required: true },
         streamId: { type: String, required: true },
     },
+    template: `<div class="player-wrap"><video ref="videoEl" class="player-video" controls autoplay muted playsinline></video></div>`,
     setup(props) {
         const videoEl = ref<HTMLVideoElement | null>(null);
-        const player  = ref<Hls | null>(null);
-        const buffering = ref(false);
-        let bufDebounce: number | undefined;
-
-        function scheduleBuffering() {
-            clearTimeout(bufDebounce);
-            bufDebounce = window.setTimeout(() => { buffering.value = true; }, 3000);
-        }
-        function clearBuffering() {
-            clearTimeout(bufDebounce);
-            buffering.value = false;
-        }
-
-        function attachHandlers() {
-            const v = videoEl.value; if (!v) return;
-            v.onwaiting = () => { if (!v.ended) scheduleBuffering(); };
-            v.onstalled = () => { if (!v.ended) scheduleBuffering(); };
-            v.onplaying = () => clearBuffering();
-            v.oncanplay = () => clearBuffering();
-        }
+        let player: Hls | null = null;
 
         function destroy() {
-            clearBuffering();
-            if (player.value) { player.value.destroy(); player.value = null; }
+            if (player) { player.destroy(); player = null; }
         }
 
         function init() {
@@ -134,7 +115,6 @@ const VideoWallPlayer = defineComponent({
             destroy();
             const rawUrl = props.hlsUrl.replace(/\{\{mode\}\}/g, 'read');
             const url = new URL(rawUrl);
-            attachHandlers();
             const hls = new Hls({
                 enableWorker: false, lowLatencyMode: false, debug: false,
                 backBufferLength: 30, maxBufferLength: 10,
@@ -143,9 +123,8 @@ const VideoWallPlayer = defineComponent({
                         xhr.setRequestHeader('Authorization', 'Basic ' + btoa(`${url.username}:${url.password}`));
                 },
             });
-            player.value = hls;
+            player = hls;
             hls.attachMedia(videoEl.value);
-            // Pass URL with credentials — HLS.js extracts them internally
             hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(url.toString()));
             hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.value?.play().catch(() => {}));
             hls.on(Hls.Events.ERROR, (_e, d) => {
@@ -157,10 +136,7 @@ const VideoWallPlayer = defineComponent({
         onMounted(async () => { await nextTick(); init(); });
         onUnmounted(() => destroy());
 
-        return () => h('div', { class: 'player-wrap' }, [
-            h('video', { ref: videoEl, class: 'player-video', controls: true, autoplay: true, muted: true, playsinline: true }),
-            buffering.value ? h('div', { class: 'player-buffering' }, [h('span', {}, '⏳')]) : null,
-        ]);
+        return { videoEl };
     },
 });
 

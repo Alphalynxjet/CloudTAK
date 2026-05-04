@@ -366,6 +366,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const mapStore = useMapStore();
 const floatStore = useFloatStore();
+const menuStore = mapStore.menu;
 
 const connectionFilter = ref('');
 const leasePaging = ref({
@@ -504,9 +505,9 @@ async function fetchConnections(): Promise<void> {
         if (connectionsRes.error) throw new Error(connectionsRes.error.message);
         connections.value = connectionsRes.data;
 
-        activePaths.value = new Set(
-            (pathsData.items || []).filter(p => p.ready).map(p => p.name)
-        );
+        const readyPaths = (pathsData.items || []).filter(p => p.ready);
+        activePaths.value = new Set(readyPaths.map(p => p.name));
+        menuStore.activeVideoCount.value = readyPaths.length;
 
         if (!leasesRes.error) {
             leases.value = leasesRes.data;

@@ -49,6 +49,7 @@ export default class MenuManager {
     preferredLayout: Ref<'list' | 'tiles'>;
     onlineContactsCount: Ref<number>;
     unreadChatsCount: Ref<number>;
+    activeVideoCount: Ref<number>;
     isSystemAdmin: Ref<boolean>;
     isAgencyAdmin: Ref<boolean>;
     pluginMenuItems: Ref<MenuItemConfig[]>;
@@ -60,6 +61,7 @@ export default class MenuManager {
         this.filter = ref('');
         this.onlineContactsCount = ref(0);
         this.unreadChatsCount = ref(0);
+        this.activeVideoCount = ref(0);
         this.isSystemAdmin = ref(false);
         this.isAgencyAdmin = ref(false);
         this.pluginMenuItems = ref([]);
@@ -278,6 +280,12 @@ export default class MenuManager {
             }
 
             return combined.map((item) => {
+                if (item.key === 'videos' && this.activeVideoCount?.value > 0) {
+                    return {
+                        ...item,
+                        badge: String(this.activeVideoCount.value)
+                    }
+                }
                 if (item.key === 'chats' && this.unreadChatsCount?.value > 0) {
                     return {
                         ...item,
