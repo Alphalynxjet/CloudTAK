@@ -1,0 +1,6 @@
+.docker-media-recordings
+.docker-postgis
+.docker-store
+.git
+node_modules
+*/node_modules

@@ -141,7 +141,6 @@ import { useFloatStore } from '../../../stores/float.ts';
 import type { Pane, PaneVideoConfig } from '../../../stores/float.ts';
 import {
     IconUsersGroup,
-    IconPlayerPauseFilled
 } from '@tabler/icons-vue';
 import {
     TablerNone,
