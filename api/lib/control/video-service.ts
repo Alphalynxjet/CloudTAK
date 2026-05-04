@@ -879,6 +879,23 @@ export default class VideoServiceControl {
         return 0;
     }
 
+    segmentsFromFilesystem(leasePath: string): Array<{ start: string; size: number }> {
+        const dir = nodePath.join(RECORDINGS_DIR, leasePath);
+        try {
+            return fs.readdirSync(dir)
+                .filter(f => f.endsWith('.mp4'))
+                .map(f => {
+                    // filename: 2026-05-04_08-59-06-751285.mp4
+                    const m = f.match(/^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})-(\d+)\.mp4$/);
+                    if (!m) return null;
+                    const start = `${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`;
+                    const size = fs.statSync(nodePath.join(dir, f)).size;
+                    return { start, size };
+                })
+                .filter((s): s is { start: string; size: number } => s !== null);
+        } catch { return []; }
+    }
+
     async recordingsByPaths(paths: string[]): Promise<Array<{ path: string, segments: Array<{ start: string; size: number }> }>> {
         const results = await Promise.allSettled(
             paths.map(async (leasePath) => {
@@ -888,9 +905,11 @@ export default class VideoServiceControl {
                         start: seg.start,
                         size: this.segmentFileSize(leasePath, seg.start)
                     }));
-                    return { path: leasePath, segments };
+                    // Fall back to filesystem if mediamtx returned no segments
+                    return { path: leasePath, segments: segments.length ? segments : this.segmentsFromFilesystem(leasePath) };
                 } catch {
-                    return { path: leasePath, segments: [] as Array<{ start: string; size: number }> };
+                    // mediamtx doesn't know this path — read directly from disk
+                    return { path: leasePath, segments: this.segmentsFromFilesystem(leasePath) };
                 }
             })
         );
