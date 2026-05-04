@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, computed, onMounted, onUnmounted, defineComponent, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, defineComponent, h, nextTick } from 'vue';
 import { std } from '../../std.ts';
 
 const emit = defineEmits(['close']);
@@ -101,7 +101,6 @@ const VideoWallPlayer = defineComponent({
         hlsUrl: { type: String, required: true },
         streamId: { type: String, required: true },
     },
-    template: `<div class="player-wrap"><video ref="videoEl" class="player-video" controls autoplay muted playsinline></video></div>`,
     setup(props) {
         const videoEl = ref<HTMLVideoElement | null>(null);
         let player: Hls | null = null;
@@ -136,7 +135,9 @@ const VideoWallPlayer = defineComponent({
         onMounted(async () => { await nextTick(); init(); });
         onUnmounted(() => destroy());
 
-        return { videoEl };
+        return () => h('div', { class: 'player-wrap' },
+            [h('video', { ref: videoEl, class: 'player-video', controls: true, autoplay: true, muted: true, playsinline: true })]
+        );
     },
 });
 
