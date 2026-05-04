@@ -792,6 +792,41 @@ export default async function router(schema: Schema, config: Config) {
         }
     });
 
+    await schema.get('/video/wall', {
+        name: 'Video Wall Data',
+        group: 'VideoLease',
+        description: 'Returns all active mediamtx paths and non-expired leases for the video wall',
+        res: Type.Object({
+            paths: Type.Array(Type.Object({ name: Type.String(), ready: Type.Boolean(), readers: Type.Integer() })),
+            leases: Type.Array(VideoLeaseResponse)
+        })
+    }, async (req, res) => {
+        try {
+            await Auth.as_user(config, req, { token: true });
+
+            const [pathsList, leaseList] = await Promise.all([
+                videoControl.pathsList(),
+                config.models.VideoLease.list({ limit: 1000, page: 0, where: undefined })
+            ]);
+
+            const now = new Date();
+            const leases = leaseList.items.filter(l =>
+                !l.ephemeral && (!l.expiration || new Date(l.expiration) > now)
+            );
+
+            res.json({
+                paths: (pathsList.items ?? []).map(p => ({
+                    name: p.name,
+                    ready: p.ready,
+                    readers: Array.isArray(p.readers) ? p.readers.length : 0
+                })),
+                leases
+            });
+        } catch (err) {
+            Err.respond(err, res);
+        }
+    });
+
     await schema.get('/video/path/:path/hls', {
         name: 'Get HLS URL for Path',
         group: 'VideoLease',

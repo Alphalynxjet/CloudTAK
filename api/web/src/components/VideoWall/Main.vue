@@ -77,7 +77,7 @@
 
 <script setup lang='ts'>
 import { ref, computed, onMounted, onUnmounted, defineComponent, h, nextTick } from 'vue';
-import { std, server } from '../../std.ts';
+import { std } from '../../std.ts';
 
 const emit = defineEmits(['close']);
 
@@ -186,20 +186,16 @@ async function load() {
     loading.value = true;
     loadError.value = '';
     try {
-        const [pathsData, leasesRes] = await Promise.all([
-            std('/api/video/paths') as Promise<{ items: PathItem[] }>,
-            server.GET('/api/video/lease', { params: { query: { limit: 200, page: 0, order: 'desc', sort: 'created', expired: 'false', ephemeral: 'false', filter: '' } } }),
-        ]);
+        const wallData = await std('/api/video/wall') as {
+            paths: { name: string; ready: boolean; readers: number }[];
+            leases: VideoLease[];
+        };
 
-        if (leasesRes.error) throw new Error(leasesRes.error.message);
-
-        const activePaths = (pathsData.items ?? []).filter(p => p.ready);
-        const readerMap = new Map<string, number>(
-            activePaths.map(p => [p.name, Array.isArray(p.readers) ? p.readers.length : 0])
-        );
+        const activePaths = (wallData.paths ?? []).filter(p => p.ready);
+        const readerMap = new Map<string, number>(activePaths.map(p => [p.name, p.readers]));
 
         const leaseByPath = new Map<string, VideoLease>();
-        for (const l of (leasesRes.data?.items ?? [])) leaseByPath.set(l.path, l);
+        for (const l of (wallData.leases ?? [])) leaseByPath.set(l.path, l);
 
         const result: Stream[] = [];
 
@@ -226,7 +222,7 @@ async function load() {
 
         // Offline leases (not currently in active paths)
         const activePathNames = new Set(activePaths.map(p => p.name));
-        for (const lease of (leasesRes.data?.items ?? [])) {
+        for (const lease of (wallData.leases ?? [])) {
             if (!activePathNames.has(lease.path)) {
                 result.push({ lease, live: false, readers: 0, hlsUrl: null });
             }
@@ -245,13 +241,9 @@ function goBack() { emit('close'); }
 
 async function refresh() {
     try {
-        const [pathsData] = await Promise.all([
-            std('/api/video/paths') as Promise<{ items: PathItem[] }>,
-        ]);
-        const readySet = new Set((pathsData.items ?? []).filter(p => p.ready).map(p => p.name));
-        const readerMap = new Map<string, number>(
-            (pathsData.items ?? []).map(p => [p.name, Array.isArray(p.readers) ? p.readers.length : 0])
-        );
+        const wallData = await std('/api/video/wall') as { paths: { name: string; ready: boolean; readers: number }[]; leases: VideoLease[] };
+        const readySet = new Set((wallData.paths ?? []).filter(p => p.ready).map(p => p.name));
+        const readerMap = new Map<string, number>((wallData.paths ?? []).filter(p => p.ready).map(p => [p.name, p.readers]));
         streams.value = streams.value.map(s => ({
             ...s,
             live: readySet.has(s.lease.path),
