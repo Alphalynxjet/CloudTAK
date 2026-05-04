@@ -565,16 +565,19 @@ export default async function router(schema: Schema, config: Config) {
                 where: undefined
             });
 
-            const paths = leaseList.items
-                .filter(l => l.recording)
-                .map(l => l.path);
-
-            const allRecs = await videoControl.recordingsByPaths(paths);
-
             const leaseByPath = new Map<string, { id: number, name: string }>();
             for (const l of leaseList.items) {
                 leaseByPath.set(l.path, { id: l.id, name: l.name });
             }
+
+            // Active lease paths + any orphaned paths found on disk
+            const leasePaths = new Set(leaseList.items.filter(l => l.recording).map(l => l.path));
+            try {
+                const fsDirs = (await import('node:fs')).readdirSync('/recordings');
+                for (const dir of fsDirs) leasePaths.add(dir);
+            } catch { /* recordings dir may not exist */ }
+
+            const allRecs = await videoControl.recordingsByPaths([...leasePaths]);
 
             const items = allRecs.map(rec => {
                 const lease = leaseByPath.get(rec.path);

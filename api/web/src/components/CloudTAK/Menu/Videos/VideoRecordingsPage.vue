@@ -41,12 +41,12 @@
                         style='width:140px'
                     />
                     <div class='d-flex align-items-center gap-1'>
-                        <select v-model='filterFromHH' class='form-select form-select-sm' style='width:58px'>
+                        <select v-model='filterFromHH' class='form-select form-select-sm' style='width:66px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
                             <option value=''>HH</option>
                             <option v-for='h in hours' :key='h' :value='h'>{{ h }}</option>
                         </select>
                         <span class='text-secondary'>:</span>
-                        <select v-model='filterFromMM' class='form-select form-select-sm' style='width:58px'>
+                        <select v-model='filterFromMM' class='form-select form-select-sm' style='width:66px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
                             <option value=''>MM</option>
                             <option v-for='m in minutes' :key='m' :value='m'>{{ m }}</option>
                         </select>
@@ -65,12 +65,12 @@
                         style='width:140px'
                     />
                     <div class='d-flex align-items-center gap-1'>
-                        <select v-model='filterToHH' class='form-select form-select-sm' style='width:58px'>
+                        <select v-model='filterToHH' class='form-select form-select-sm' style='width:66px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
                             <option value=''>HH</option>
                             <option v-for='h in hours' :key='h' :value='h'>{{ h }}</option>
                         </select>
                         <span class='text-secondary'>:</span>
-                        <select v-model='filterToMM' class='form-select form-select-sm' style='width:58px'>
+                        <select v-model='filterToMM' class='form-select form-select-sm' style='width:66px; color:inherit; background-color:var(--tblr-body-bg, #1a1a2e)'>
                             <option value=''>MM</option>
                             <option v-for='m in minutes' :key='m' :value='m'>{{ m }}</option>
                         </select>
