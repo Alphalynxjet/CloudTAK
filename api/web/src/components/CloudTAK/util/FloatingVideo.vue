@@ -307,11 +307,11 @@ async function createPlayer(): Promise<void> {
             enableWorker: true,
             lowLatencyMode: false, // More forgiving for stream restarts
             debug: false,
-            backBufferLength: 120,
-            maxBufferLength: 60,
-            maxMaxBufferLength: 600,
-            liveSyncDurationCount: 5,
-            liveMaxLatencyDurationCount: 15,
+            backBufferLength: 30,
+            maxBufferLength: 10,
+            maxMaxBufferLength: 30,
+            liveSyncDurationCount: 3,
+            liveMaxLatencyDurationCount: 8,
             xhrSetup: (xhr: XMLHttpRequest) => {
                 // Add authentication if stream requires it
                 if (url.username && url.password) {

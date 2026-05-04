@@ -130,8 +130,8 @@ const VideoWallPlayer = defineComponent({
             const url = new URL(rawUrl);
             attachHandlers();
             const hls = new Hls({
-                enableWorker: false, lowLatencyMode: false, debug: false,
-                backBufferLength: 90, maxBufferLength: 30,
+                enableWorker: false, lowLatencyMode: true, debug: false,
+                backBufferLength: 30, maxBufferLength: 10,
                 xhrSetup(xhr) {
                     if (url.username && url.password)
                         xhr.setRequestHeader('Authorization', 'Basic ' + btoa(`${url.username}:${url.password}`));
