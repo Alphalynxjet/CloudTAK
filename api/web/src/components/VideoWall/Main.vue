@@ -143,14 +143,10 @@ const VideoWallPlayer = defineComponent({
                         xhr.setRequestHeader('Authorization', 'Basic ' + btoa(`${url.username}:${url.password}`));
                 },
             });
-            // Strip credentials from URL — pass via header instead to avoid browser security blocks
-            const cleanUrl = new URL(url.toString());
-            cleanUrl.username = '';
-            cleanUrl.password = '';
-
             player.value = hls;
             hls.attachMedia(videoEl.value);
-            hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(cleanUrl.toString()));
+            // Pass URL with credentials — HLS.js extracts them internally
+            hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(url.toString()));
             hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.value?.play().catch(() => {}));
             hls.on(Hls.Events.ERROR, (_e, d) => {
                 if (!d.fatal) { hls.startLoad(); return; }

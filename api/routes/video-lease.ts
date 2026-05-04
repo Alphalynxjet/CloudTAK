@@ -809,10 +809,7 @@ export default async function router(schema: Schema, config: Config) {
                 config.models.VideoLease.list({ limit: 1000, page: 0, where: undefined })
             ]);
 
-            const now = new Date();
-            const leases = leaseList.items.filter(l =>
-                !l.ephemeral && (!l.expiration || new Date(l.expiration) > now)
-            );
+            const leases = leaseList.items.filter(l => !l.ephemeral);
 
             res.json({
                 paths: (pathsList.items ?? []).map(p => ({
