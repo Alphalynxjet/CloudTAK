@@ -1,13 +1,3 @@
-<p align=center><img src='./api/web/public/CloudTAKLogo.svg' alt='CloudTAK Logo' width='128'/></p>
-
-<h1 align=center>CloudTAK</h1>
-
-<p align=center>Full Featured in-browser TAK Client</p>
-<p align=center>&</p>
-<p align=center>Facilitate ETL operations to bring non-TAK data sources into a TAK Server</p>
-
-<img src='./docs/Screenshot.png' alt='Screenshot of CloudTAK'/>
-
 ## Upstream sync status
 
 | | |
