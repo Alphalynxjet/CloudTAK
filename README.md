@@ -1,22 +1,99 @@
 <p align=center><img src='./api/web/public/CloudTAKLogo.svg' alt='CloudTAK Logo' width='128'/></p>
 
-<h1 align=center>CloudTAK</h1>
+<h1 align=center>CloudTAK (Fork)</h1>
 
 <p align=center>Full Featured in-browser TAK Client</p>
 <p align=center>&</p>
 <p align=center>Facilitate ETL operations to bring non-TAK data sources into a TAK Server</p>
 
-<p align='center'>
-    <a href="https://codecov.io/gh/dfpc-coe/CloudTAK" >
-        <img src="https://codecov.io/github/dfpc-coe/CloudTAK/graph/badge.svg?token=O9PK0XT9Z2"/>
-    </a>
-</p>
-
 <img src='./docs/Screenshot.png' alt='Screenshot of CloudTAK'/>
 
-## Documentation
+## About this fork
 
-Deployment, local development, and administration guidance now live in the CloudTAK documentation site so the repo root is not a second source of truth.
+This is a fork of [dfpc-coe/CloudTAK](https://github.com/dfpc-coe/CloudTAK)
+maintained for **our own server deployment** — it is not a general-purpose
+distribution, and changes here are tailored to our environment.
+
+**Versioning:** this fork uses its own version scheme in
+`api/package.json` / `api/web/package.json` instead of upstream's semver.
+
+### Upstream sync status
+
+| | |
+|---|---|
+| **Last synced with upstream** | 2026-07-05 |
+| **Upstream commit at sync** | `f4d19bf29` (v13.32.0, 2026-07-04) |
+| **Fork version after sync** | `TG.002.0` (upstream base 13.32.0) |
+
+To pull in new upstream changes:
+
+```bash
+git fetch upstream            # upstream = https://github.com/dfpc-coe/CloudTAK
+git merge upstream/main
+```
+
+Conflicts will almost always be in the files listed below — resolve keeping this
+fork's feature set, then **update the sync date and commit in the table above**.
+
+### Our changes vs upstream
+
+Everything custom in this fork is part of the **video recordings & video wall
+feature set**, plus a few operational tweaks. Modified/added files:
+
+#### Backend (api/)
+
+- `api/lib/control/video-service.ts` — Recording storage support: `/recordings`
+  helpers (`recordingFilePath`, `streamRecordingSegment`, `segmentFileSize`,
+  `hlsUrlForPath`), prefix-scan fallback for segment file sizes.
+  **Security:** video lease credentials are random hex via `crypto.randomBytes`
+  (upstream uses guessable `read<id>`/`write<id>` usernames and weak
+  `Math.random` passwords). Also fixes upstream's `segmenets` typo in the
+  `Recording` schema (`segments`, with a default).
+- `api/routes/video-lease.ts` — Recordings API: `GET /video/recordings` (all
+  recordings across leases with lease metadata), path-based segment
+  download/delete/playback including orphaned recordings found on disk,
+  access control (owner / shared / admin), recordings directory deleted from
+  disk when a lease is deleted. Fix: metadata endpoint passes
+  `ProtocolPopulation.READ` so real (not placeholder) read credentials are
+  returned.
+
+#### Frontend (api/web/)
+
+- `api/web/src/components/VideoWall/Main.vue` — Video wall reworked as a
+  **fullscreen overlay inside the main app** (upstream has a standalone
+  `/video` page): 1/2/3/4-column grid, shows all leases live/offline, HLS.js
+  playback with lease credentials, buffering badge, Firefox layout fixes.
+- `api/web/src/components/CloudTAK/Menu/Videos/VideoRecordingsPage.vue` *(new)* —
+  Recordings browser: search/sort, collapsible per-lease groups, file sizes,
+  storage totals, admin-only delete.
+- `api/web/src/components/CloudTAK/Menu/Videos/VideoRecordingsModal.vue` *(new)* —
+  Recording playback/download modal.
+- `api/web/src/components/CloudTAK/Menu/MenuVideos.vue` — Video wall button and
+  recordings entry in the Videos menu.
+- `api/web/src/components/CloudTAK/util/FloatingVideo.vue` — Debounced buffering
+  overlay, reduced HLS buffer for live streams.
+- `api/web/src/App.vue` — Polls `/api/video/paths` every 30s for the sidebar
+  active-video badge; the "new version available" banner is hidden (upgrades
+  are managed centrally in our deployment).
+- `api/web/src/stores/modules/menu.ts` — `activeVideoCount` badge on the Videos
+  menu item.
+- `api/web/src/components/CloudTAK/MainMenuContents.vue` — App-switcher dropdown
+  removed (its "Video Wall" link pointed at the deleted `/video` page).
+- `api/web/video.html`, `api/web/src/pages/video/main.ts` *(deleted)* — the
+  standalone `/video` page is replaced by the in-app overlay.
+- `api/web/vite.config.ts` — Removed the `video` build entry; dev proxy target
+  overridable via `CLOUDTAK_API_TARGET`.
+
+#### Operational
+
+- `docker-compose.yml` — Persistent bind mounts: `.docker-media-recordings` →
+  `/recordings` (api + media containers) and `.docker-postgis` for the
+  database.
+- `.dockerignore` *(new)* — keeps local data dirs (recordings, postgis, store)
+  and `node_modules` out of the Docker build context.
+- `api/package.json`, `api/web/package.json` — `TG.xxx.x` version scheme.
+
+## Upstream documentation
 
 - Deployment: https://docs.cloudtak.io/deploy/
 - Local development: https://docs.cloudtak.io/develop/
@@ -24,5 +101,3 @@ Deployment, local development, and administration guidance now live in the Cloud
 
 > [!NOTE]
 > Local development and Docker Compose expose the core map experience, but a full AWS deployment is still required for the complete optional ETL infrastructure.
-
-
