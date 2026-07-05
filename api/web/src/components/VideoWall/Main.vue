@@ -12,6 +12,16 @@
             <span v-if='liveCount' class='live-badge'>{{ liveCount }} LIVE</span>
             <div class='wall-header-right'>
                 <span class='stream-count'>{{ streams.length }} stream{{ streams.length !== 1 ? 's' : '' }}</span>
+                <div class='layout-btns'>
+                    <button
+                        v-for='opt in ["auto", "1", "2", "3", "4"]'
+                        :key='opt'
+                        class='layout-btn'
+                        :class='{ active: layoutCols === opt }'
+                        :title='opt === "auto" ? "Automatic layout" : `${opt} column${opt === "1" ? "" : "s"}`'
+                        @click='setLayout(opt)'
+                    >{{ opt === 'auto' ? 'Auto' : opt }}</button>
+                </div>
                 <button class='refresh-btn' title='Refresh' @click='load'>
                     <IconRefresh :size='18' stroke='1.5' />
                 </button>
@@ -32,10 +42,15 @@
                 <div class='wall-empty-sub'>Open CloudTAK → Videos → Leases to set up a video stream</div>
                 <button class='wall-empty-btn' @click='goBack'>Open CloudTAK</button>
             </div>
-            <div v-else class='wall-grid' :style='gridStyle'>
+            <div
+                v-else
+                class='wall-grid'
+                :class='{ manual: scrollLayout }'
+                :style='gridStyle'
+            >
                 <div
-                    v-for='s in streams'
-                    :key='s.lease.id'
+                    v-for='s in sortedStreams'
+                    :key='s.lease.id || s.lease.path'
                     class='wall-cell'
                     :class='{ "cell-live": s.live }'
                 >
@@ -110,26 +125,41 @@ const VideoWallPlayer = defineComponent({
         }
 
         function init() {
-            if (!videoEl.value || !Hls.isSupported()) return;
+            if (!videoEl.value) return;
             destroy();
             const rawUrl = props.hlsUrl.replace(/\{\{mode\}\}/g, 'read');
             const url = new URL(rawUrl);
-            const hls = new Hls({
-                enableWorker: false, lowLatencyMode: false, debug: false,
-                backBufferLength: 30, maxBufferLength: 10,
-                xhrSetup(xhr) {
-                    if (url.username && url.password)
-                        xhr.setRequestHeader('Authorization', 'Basic ' + btoa(`${url.username}:${url.password}`));
-                },
-            });
-            player = hls;
-            hls.attachMedia(videoEl.value);
-            hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(url.toString()));
-            hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.value?.play().catch(() => {}));
-            hls.on(Hls.Events.ERROR, (_e, d) => {
-                if (!d.fatal) { hls.startLoad(); return; }
-                try { hls.recoverMediaError(); } catch { destroy(); }
-            });
+
+            if (Hls.isSupported()) {
+                const hls = new Hls({
+                    enableWorker: false, lowLatencyMode: false, debug: false,
+                    backBufferLength: 30, maxBufferLength: 10,
+                    xhrSetup(xhr) {
+                        if (url.username && url.password)
+                            xhr.setRequestHeader('Authorization', 'Basic ' + btoa(`${url.username}:${url.password}`));
+                    },
+                });
+                player = hls;
+                hls.attachMedia(videoEl.value);
+                hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(url.toString()));
+                hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.value?.play().catch(() => {}));
+                hls.on(Hls.Events.ERROR, (_e, d) => {
+                    if (!d.fatal) { hls.startLoad(); return; }
+                    try { hls.recoverMediaError(); } catch { destroy(); }
+                });
+            } else if (videoEl.value.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS fallback (pre-17.1 iOS Safari has no MSE, so
+                // hls.js is unavailable). Media requests strip URL userinfo,
+                // so credentials move to mediamtx's query parameters.
+                if (url.username && url.password) {
+                    url.searchParams.set('user', url.username);
+                    url.searchParams.set('pass', url.password);
+                    url.username = '';
+                    url.password = '';
+                }
+                videoEl.value.src = url.toString();
+                videoEl.value.play().catch(() => {});
+            }
         }
 
         onMounted(async () => { await nextTick(); init(); });
@@ -150,7 +180,39 @@ let timer: number | undefined;
 
 const liveCount = computed(() => streams.value.filter(s => s.live).length);
 
+// Online streams first, then offline; stable name order within each group
+const sortedStreams = computed(() => [...streams.value].sort((a, b) =>
+    Number(b.live) - Number(a.live)
+    || String(a.lease.name || a.lease.path).localeCompare(String(b.lease.name || b.lease.path))
+));
+
+// 'auto' fits everything on screen; '1'–'4' force a column count and let the
+// wall scroll vertically (cells keep a 16:9 aspect). Persisted per browser.
+const layoutCols = ref<string>(localStorage.getItem('videowall-cols') ?? 'auto');
+
+function setLayout(opt: string) {
+    layoutCols.value = opt;
+    localStorage.setItem('videowall-cols', opt);
+}
+
+// Phones get a single scrollable column in auto mode — the count-based grid
+// would otherwise squeeze 3–4 columns of unwatchable slivers into a portrait
+// viewport.
+const narrowQuery = window.matchMedia('(max-width: 640px)');
+const narrow = ref(narrowQuery.matches);
+const onNarrowChange = (e: MediaQueryListEvent) => { narrow.value = e.matches; };
+
+const scrollLayout = computed(() => layoutCols.value !== 'auto' || narrow.value);
+
 const gridStyle = computed(() => {
+    if (layoutCols.value !== 'auto') {
+        return { gridTemplateColumns: `repeat(${Number(layoutCols.value)}, 1fr)` };
+    }
+
+    if (narrow.value) {
+        return { gridTemplateColumns: '1fr' };
+    }
+
     const n = streams.value.length;
     const cols = n === 1 ? 1 : n === 2 ? 2 : n === 3 ? 3 : n === 4 ? 2 : n <= 6 ? 3 : n <= 9 ? 3 : 4;
     const rows = Math.ceil(n / cols);
@@ -160,8 +222,15 @@ const gridStyle = computed(() => {
     };
 });
 
-onMounted(async () => { await load(); timer = window.setInterval(refresh, 30_000); });
-onUnmounted(() => { if (timer) clearInterval(timer); });
+onMounted(async () => {
+    narrowQuery.addEventListener('change', onNarrowChange);
+    await load();
+    timer = window.setInterval(refresh, 30_000);
+});
+onUnmounted(() => {
+    narrowQuery.removeEventListener('change', onNarrowChange);
+    if (timer) clearInterval(timer);
+});
 
 async function load() {
     loading.value = true;
@@ -178,10 +247,10 @@ async function load() {
         const leaseByPath = new Map<string, VideoLease>();
         for (const l of (wallData.leases ?? [])) leaseByPath.set(l.path, l);
 
-        const result: Stream[] = [];
-
-        // Active streams: use mediamtx paths as source of truth
-        for (const p of activePaths) {
+        // Active streams: use mediamtx paths as source of truth.
+        // Metadata is fetched in parallel — serial awaits made initial load
+        // scale with the number of live streams.
+        const result: Stream[] = await Promise.all(activePaths.map(async (p) => {
             const lease = leaseByPath.get(p.name);
             let hlsUrl: string | null = null;
             try {
@@ -193,13 +262,13 @@ async function load() {
                     hlsUrl = r.url;
                 }
             } catch { /* stream metadata unavailable */ }
-            result.push({
+            return {
                 lease: lease ?? { id: 0, path: p.name, name: p.name } as VideoLease,
                 live: true,
                 readers: readerMap.get(p.name) ?? 0,
                 hlsUrl
-            });
-        }
+            };
+        }));
 
         // Offline leases (not currently in active paths)
         const activePathNames = new Set(activePaths.map(p => p.name));
@@ -223,12 +292,37 @@ function goBack() { emit('close'); }
 async function refresh() {
     try {
         const wallData = await std('/api/video/wall') as { paths: { name: string; ready: boolean; readers: number }[]; leases: VideoLease[] };
-        const readySet = new Set((wallData.paths ?? []).filter(p => p.ready).map(p => p.name));
-        const readerMap = new Map<string, number>((wallData.paths ?? []).filter(p => p.ready).map(p => [p.name, p.readers]));
+        const ready = (wallData.paths ?? []).filter(p => p.ready);
+        const readySet = new Set(ready.map(p => p.name));
+        const readerMap = new Map<string, number>(ready.map(p => [p.name, p.readers]));
+
+        // New paths or leases appeared since the last full load — rebuild
+        const known = new Set(streams.value.map(s => s.lease.path));
+        if (
+            ready.some(p => !known.has(p.name))
+            || (wallData.leases ?? []).some(l => !l.ephemeral && !known.has(l.path))
+        ) {
+            await load();
+            return;
+        }
+
         streams.value = streams.value.map(s => ({
             ...s,
             live: readySet.has(s.lease.path),
             readers: readerMap.get(s.lease.path) ?? s.readers,
+        }));
+
+        // Streams that just came online need an HLS URL before they can render
+        await Promise.all(streams.value.filter(s => s.live && !s.hlsUrl).map(async (s) => {
+            try {
+                if (s.lease.id) {
+                    const meta = await std(`/api/video/lease/${s.lease.id}/metadata`) as VideoLeaseMetadata;
+                    s.hlsUrl = meta?.protocols?.hls?.url?.replace(/\{\{mode\}\}/g, 'read') ?? null;
+                } else {
+                    const r = await std(`/api/video/path/${s.lease.path}/hls`) as { url: string };
+                    s.hlsUrl = r.url;
+                }
+            } catch { /* stream metadata unavailable */ }
         }));
     } catch { /* ignore */ }
 }
@@ -281,6 +375,19 @@ async function refresh() {
 }
 .wall-header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .stream-count { font-size: 0.8rem; color: rgba(255,255,255,0.45); }
+.layout-btns {
+    display: flex; gap: 2px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px; padding: 2px;
+}
+.layout-btn {
+    background: none; border: none; color: rgba(255,255,255,0.45);
+    font-size: 0.72rem; font-weight: 600; padding: 3px 8px;
+    border-radius: 4px; cursor: pointer; transition: color 0.15s, background 0.15s;
+}
+.layout-btn:hover { color: #fff; }
+.layout-btn.active { background: rgba(255,255,255,0.14); color: #fff; }
 .refresh-btn {
     background: none; border: none; color: rgba(255,255,255,0.5);
     cursor: pointer; padding: 4px; display: flex; align-items: center;
@@ -327,6 +434,16 @@ async function refresh() {
     height: 100%;
 }
 
+/* Manual column count: cells keep 16:9 and the wall scrolls vertically */
+.wall-grid.manual {
+    grid-template-rows: none;
+    grid-auto-rows: max-content;
+    align-content: start;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+.wall-grid.manual .wall-cell { aspect-ratio: 16 / 9; }
+
 /* Cell */
 .wall-cell {
     position: relative;
@@ -360,6 +477,7 @@ async function refresh() {
     position: absolute;
     top: 8px;
     left: 8px;
+    pointer-events: none;
 }
 .badge-live {
     background: #e53e3e;
@@ -391,6 +509,8 @@ async function refresh() {
     display: flex;
     align-items: center;
     gap: 6px;
+    /* Overlay only — must not swallow taps meant for the native video controls */
+    pointer-events: none;
 }
 .cell-name {
     font-size: 0.75rem;
@@ -420,5 +540,19 @@ async function refresh() {
     font-size: 0.7rem;
     color: rgba(255,255,255,0.8);
     pointer-events: none;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+    .wall-header {
+        gap: 8px;
+        padding: 10px 12px;
+        padding-top: max(10px, env(safe-area-inset-top));
+    }
+    .wall-title, .stream-count { display: none; }
+    .wall-body {
+        padding: 8px;
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
 }
 </style>

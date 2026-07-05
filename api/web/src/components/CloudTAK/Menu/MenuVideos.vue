@@ -25,9 +25,8 @@
             </TablerIconButton>
 
             <TablerIconButton
-                v-if='entitlement.recording'
                 title='All Recordings'
-                @click='showRecordingsPage = true'
+                @click='openRecordings'
             >
                 <IconHistory
                     :size='32'
@@ -333,6 +332,45 @@
             @close='showVideoWall = false'
         />
     </Teleport>
+
+    <!-- Recording not included in plan — upsell overlay -->
+    <Teleport to='body'>
+        <div
+            v-if='showRecordingUpsell'
+            class='d-flex align-items-center justify-content-center'
+            style='position: fixed; inset: 0; z-index: 10500; background: rgba(0, 0, 0, 0.6);'
+            @click.self='showRecordingUpsell = false'
+        >
+            <div
+                class='card mx-3'
+                style='max-width: 420px;'
+            >
+                <div class='card-body text-center py-4'>
+                    <IconVideoOff
+                        :size='48'
+                        stroke='1'
+                        class='text-secondary'
+                    />
+                    <h3 class='mt-3'>
+                        Recording Not Available
+                    </h3>
+                    <div
+                        class='text-secondary'
+                        v-text='entitlement.recording_message || "Your current plan does not include video recording."'
+                    />
+                </div>
+                <div class='card-footer d-flex justify-content-center'>
+                    <button
+                        class='btn btn-primary'
+                        style='width: 120px;'
+                        @click='showRecordingUpsell = false'
+                    >
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup lang='ts'>
@@ -363,6 +401,7 @@ import {
 import {
     IconPlus,
     IconVideo,
+    IconVideoOff,
     IconPencil,
     IconServer2,
     IconVideoPlus,
@@ -408,8 +447,21 @@ const entitlement = ref<{
     managed: boolean;
     max_leases: number | null;
     recording: boolean;
+    recording_message: string | null;
     used_leases: number;
-}>({ managed: false, max_leases: null, recording: true, used_leases: 0 });
+}>({ managed: false, max_leases: null, recording: true, recording_message: null, used_leases: 0 });
+
+const showRecordingUpsell = ref(false);
+
+// The recordings button stays visible for everyone — plans without recording
+// get the upsell overlay instead of the recordings page.
+function openRecordings() {
+    if (entitlement.value.managed && !entitlement.value.recording) {
+        showRecordingUpsell.value = true;
+    } else {
+        showRecordingsPage.value = true;
+    }
+}
 
 async function fetchEntitlement(): Promise<void> {
     try {

@@ -238,8 +238,8 @@ export default async function router(schema: Schema, config: Config) {
                 isAdmin = profile ? profile.system_admin : false;
             }
 
-            if (!isAdmin && req.body.duration > 60 * 60 * 24) {
-                throw new Err(400, null, 'Only Administrators can request a lease > 24 hours');
+            if (!isAdmin && req.body.duration > 60 * 60 * 24 * 30) {
+                throw new Err(400, null, 'Only Administrators can request a lease longer than 30 days');
             }
 
             await Entitlement.enforce(config, {
@@ -340,8 +340,8 @@ export default async function router(schema: Schema, config: Config) {
                 isAdmin = profile ? profile.system_admin : false;
             }
 
-            if (!isAdmin && req.body.duration && req.body.duration > 60 * 60 * 24) {
-                throw new Err(400, null, 'Only Administrators can request a lease > 24 hours');
+            if (!isAdmin && req.body.duration && req.body.duration > 60 * 60 * 24 * 30) {
+                throw new Err(400, null, 'Only Administrators can request a lease longer than 30 days');
             } else if (!isAdmin && req.body.permanent) {
                 throw new Err(400, null, 'Only Administrators can request permanent leases');
             }

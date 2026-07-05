@@ -464,8 +464,8 @@ export default async function router(schema: Schema, config: Config) {
         try {
             const user = await Auth.as_user(config, req);
 
-            if (user.access !== AuthUserAccess.ADMIN && req.body.duration > 60 * 60 * 24) {
-                throw new Err(400, null, 'Only Administrators can request a lease > 24 hours');
+            if (user.access !== AuthUserAccess.ADMIN && req.body.duration > 60 * 60 * 24 * 30) {
+                throw new Err(400, null, 'Only Administrators can request a lease longer than 30 days');
             } else if (user.access !== AuthUserAccess.ADMIN && req.body.permanent) {
                 throw new Err(400, null, 'Only Administrators can request permanent leases');
             }
@@ -539,8 +539,8 @@ export default async function router(schema: Schema, config: Config) {
         try {
             const user = await Auth.as_user(config, req);
 
-            if (user.access !== AuthUserAccess.ADMIN && req.body.duration && req.body.duration > 60 * 60 * 24) {
-                throw new Err(400, null, 'Only Administrators can request a lease > 24 hours');
+            if (user.access !== AuthUserAccess.ADMIN && req.body.duration && req.body.duration > 60 * 60 * 24 * 30) {
+                throw new Err(400, null, 'Only Administrators can request a lease longer than 30 days');
             } else if (user.access !== AuthUserAccess.ADMIN && req.body.permanent) {
                 throw new Err(400, null, 'Only Administrators can request permanent leases');
             }
@@ -860,17 +860,38 @@ export default async function router(schema: Schema, config: Config) {
         }),
     }, async (req, res) => {
         try {
-            await Auth.as_user(config, req, { token: true });
+            const user = await Auth.as_user(config, req, { token: true });
 
             const [pathsList, leaseList] = await Promise.all([
                 videoControl.pathsList(),
                 config.models.VideoLease.list({ limit: 1000, page: 0, where: undefined }),
             ]);
 
-            const leases = leaseList.items.filter(l => !l.ephemeral);
+            let leases = leaseList.items.filter(l => !l.ephemeral);
+            let paths = pathsList.items ?? [];
+
+            // Same visibility rule as GET /video/lease: admins see everything,
+            // everyone else sees their own leases plus channel-shared ones.
+            // Active paths are filtered to the visible leases so stream names
+            // and viewer counts don't leak across users.
+            if (user.access !== AuthUserAccess.ADMIN) {
+                let groups = new Set<string>();
+                try {
+                    const profile = await config.models.Profile.from(user.email);
+                    const api = await TAKAPI.init(new URL(String(config.server.api)), new APIAuthCertificate(profile.auth.cert, profile.auth.key));
+                    groups = new Set((await api.Group.list({ useCache: true })).data.map(group => group.name));
+                } catch (err) {
+                    console.error('[video/wall] group lookup failed — falling back to owned leases only:', err);
+                }
+
+                leases = leases.filter(l => l.username === user.email || (l.channel && groups.has(l.channel)));
+
+                const visible = new Set(leases.map(l => l.path));
+                paths = paths.filter(p => visible.has(p.name));
+            }
 
             res.json({
-                paths: (pathsList.items ?? []).map(p => ({
+                paths: paths.map(p => ({
                     name: p.name,
                     ready: p.ready,
                     readers: Array.isArray(p.readers) ? p.readers.length : 0,

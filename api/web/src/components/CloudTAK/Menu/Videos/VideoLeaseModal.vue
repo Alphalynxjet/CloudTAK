@@ -196,11 +196,24 @@
                         />
 
                         <div class='col-12 d-flex justify-content-center pb-3'>
-                            <TablerEnum
-                                v-model='editLease.duration'
-                                :options='durations'
+                            <div
+                                class='d-flex gap-2'
                                 style='width: 300px;'
-                            />
+                            >
+                                <TablerEnum
+                                    v-model='durationUnit'
+                                    :options='durationUnits'
+                                    style='flex: 1;'
+                                />
+                                <TablerInput
+                                    v-if='durationUnit !== "Permanent"'
+                                    v-model='durationValue'
+                                    type='integer'
+                                    min='1'
+                                    style='width: 90px;'
+                                    @keydown='digitsOnly'
+                                />
+                            </div>
                         </div>
                         <div class='col-12 d-flex justify-content-center'>
                             <button
@@ -363,13 +376,30 @@
                     />
                 </div>
                 <div class='col-12 col-md-4'>
-                    <TablerEnum
-                        v-model='editLease.duration'
-                        :options='durations'
-                        :disabled='disabled'
-                        label='Duration'
-                        description='Leases remain active on the server for the duration specified. Once the lease expires the lease can be renewed without the Lease URL changing'
-                    />
+                    <div class='row g-2'>
+                        <div :class='durationUnit === "Permanent" ? "col-12" : "col-7"'>
+                            <TablerEnum
+                                v-model='durationUnit'
+                                :options='durationUnits'
+                                :disabled='disabled'
+                                label='Duration'
+                                description='Leases remain active on the server for the duration specified. Once the lease expires the lease can be renewed without the Lease URL changing'
+                            />
+                        </div>
+                        <div
+                            v-if='durationUnit !== "Permanent"'
+                            class='col-5'
+                        >
+                            <TablerInput
+                                v-model='durationValue'
+                                type='integer'
+                                min='1'
+                                :disabled='disabled'
+                                label='Value'
+                                @keydown='digitsOnly'
+                            />
+                        </div>
+                    </div>
                 </div>
                 <div class='col-12 col-md-6'>
                     <TablerEnum
@@ -553,7 +583,7 @@
 import { server, std } from '../../../../std.ts';
 import { validateURL } from '../../../../base/validators.ts';
 import CopyField from '../../util/CopyField.vue';
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, computed, nextTick, onMounted } from 'vue';
 import type { paths } from '@cloudtak/api-types';
 import type { VideoLease, VideoLeaseProtocols } from '../../../../types.ts';
 import VideoLeaseSourceType from '../../util/VideoLeaseSourceType.vue'
@@ -609,14 +639,11 @@ const allowRecording = ref(true);
 const recordingMessage = ref('Your current plan does not include video recording.');
 const showRecordingUpsell = ref(false);
 
-watch(() => editLease.value.recording, (recording) => {
-    if (recording && !allowRecording.value) {
-        editLease.value.recording = false;
-        showRecordingUpsell.value = true;
-    }
-});
-
-const durations = ref<Array<string>>(["16 Hours", "12 Hours", "6 Hours", "1 Hour"]);
+// Duration = unit + numeric value (e.g. 12 Hours, 7 Days). Permanent is
+// restricted server-side to system admins, so it's only offered to them.
+const durationUnit = ref<string>('Hours');
+const durationValue = ref<number | string>(16);
+const durationUnits = computed(() => props.isSystemAdmin ? ['Hours', 'Days', 'Permanent'] : ['Hours', 'Days']);
 
 type VideoLeaseCreateBody = paths['/api/video/lease']['post']['requestBody']['content']['application/json'];
 type VideoLeaseUpdateBody = paths['/api/video/lease/{:lease}']['patch']['requestBody']['content']['application/json'];
@@ -625,7 +652,6 @@ type VideoLeaseSourceTypeValue = NonNullable<VideoLeaseCreateBody['source_type']
 const editLease = ref<{
     id?: number
     name: string
-    duration: string
     recording: boolean
     publish: boolean
     share: boolean
@@ -640,7 +666,6 @@ const editLease = ref<{
     read_pass: string | null
 }>({
     name: '',
-    duration: '16 Hours',
     channel: null,
     recording: false,
     publish: false,
@@ -653,11 +678,22 @@ const editLease = ref<{
     read_pass: ''
 });
 
-onMounted(async () => {
-    if (props.isSystemAdmin) {
-        durations.value.push('Permanent');
+// Must be registered AFTER editLease is declared — watch() reads the source
+// getter synchronously at setup, and a forward reference to editLease throws
+// a TDZ ReferenceError that crashes the whole modal.
+//
+// The revert must wait for the "true" state to render first: reverting
+// synchronously means the value ends the tick unchanged, Vue skips the patch,
+// and the DOM checkbox (already flipped by the click) stays visually on.
+watch(() => editLease.value.recording, async (recording) => {
+    if (recording && !allowRecording.value) {
+        showRecordingUpsell.value = true;
+        await nextTick();
+        editLease.value.recording = false;
     }
+});
 
+onMounted(async () => {
     try {
         const ent = await std('/api/video/entitlement') as { managed: boolean; recording: boolean; recording_message: string | null };
         if (ent.managed && !ent.recording) {
@@ -669,10 +705,7 @@ onMounted(async () => {
     }
 
     if (props.lease.id) {
-        editLease.value = {
-            ...props.lease,
-            duration: '16 Hours'
-        }
+        editLease.value = { ...props.lease };
 
         await fetchLease();
     } else {
@@ -687,10 +720,20 @@ function expired(expiration?: string | null) {
     return +new Date(expiration) < +new Date();
 }
 
-function leaseDurationSeconds(): number {
-    if (editLease.value.duration === 'Permanent') return 0;
+// Duration value accepts digits only — number inputs still allow e/+/-/.
+function digitsOnly(event: KeyboardEvent) {
+    if (event.key.length === 1 && !/[0-9]/.test(event.key) && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault();
+    }
+}
 
-    return parseInt(editLease.value.duration.split(' ')[0]) * 60 * 60;
+function leaseDurationSeconds(): number {
+    if (durationUnit.value === 'Permanent') return 0;
+
+    const value = Math.max(1, Math.floor(Number(durationValue.value) || 1));
+    return durationUnit.value === 'Days'
+        ? value * 24 * 60 * 60
+        : value * 60 * 60;
 }
 
 function leaseProxy(): string | undefined {
@@ -713,9 +756,13 @@ async function fetchLease() {
     });
     if (res.error) throw new Error(res.error.message);
 
-    editLease.value = {
-        ...res.data,
-        duration: res.data.expiration ? '16 Hours' : 'Permanent'
+    editLease.value = { ...res.data };
+
+    if (!res.data.expiration) {
+        durationUnit.value = 'Permanent';
+    } else if (durationUnit.value === 'Permanent') {
+        durationUnit.value = 'Hours';
+        durationValue.value = 16;
     }
 
     if (editLease.value.stream_user && editLease.value.read_user) {
@@ -778,7 +825,7 @@ async function saveLease() {
                 proxy: leaseProxy(),
                 channel: channels.value.length ? channels.value[0] : null,
                 duration: leaseDurationSeconds(),
-                permanent: editLease.value.duration === 'Permanent',
+                permanent: durationUnit.value === 'Permanent',
                 recording: editLease.value.recording,
                 publish: editLease.value.publish,
                 share: editLease.value.share,
@@ -803,7 +850,7 @@ async function saveLease() {
                 channel: channels.value.length ? channels.value[0] : null,
                 proxy: leaseProxy(),
                 duration: leaseDurationSeconds(),
-                permanent: editLease.value.duration === 'Permanent',
+                permanent: durationUnit.value === 'Permanent',
                 recording: editLease.value.recording,
                 publish: editLease.value.publish,
                 share: editLease.value.share,

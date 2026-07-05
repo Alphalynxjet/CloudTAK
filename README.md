@@ -46,32 +46,47 @@ feature set**, plus a few operational tweaks. Modified/added files:
   disk when a lease is deleted. Fix: metadata endpoint passes
   `ProtocolPopulation.READ` so real (not placeholder) read credentials are
   returned. Also: `GET /video/entitlement` (current user's lease limits) and
-  entitlement enforcement on lease create/update.
+  entitlement enforcement on lease create/update. `GET /video/wall` applies
+  the same visibility rule as the lease list (admins see everything, users see
+  own + channel-shared leases; active paths filtered to match). Non-admin max
+  lease duration raised from 24 hours to 30 days.
 - `api/lib/entitlement.ts` *(new)* — Optional external entitlement API client:
   when `ENTITLEMENT_API_URL` + `ENTITLEMENT_API_TOKEN` are set, video-lease
   creation is limited (max lease count per account) and stream recording can
   be disallowed, per the policy returned by the API. Cached with
   stale-on-error fallback; system admins and self-hosted installs (vars
   unset) are unaffected.
-- `api/routes/connection-video-lease.ts` — same entitlement enforcement for
-  connection-owned leases.
+- `api/routes/connection-video-lease.ts` — same entitlement enforcement and
+  30-day non-admin duration cap for connection-owned leases.
 
 ### Frontend (api/web/)
 
 - `api/web/src/components/VideoWall/Main.vue` — Video wall reworked as a
   **fullscreen overlay inside the main app** (upstream has a standalone
-  `/video` page): 1/2/3/4-column grid, shows all leases live/offline, HLS.js
-  playback with lease credentials, buffering badge, Firefox layout fixes.
+  `/video` page): shows the caller's visible leases live/offline (online
+  streams sorted first, re-sorted as the 30 s poll flips state; new streams
+  trigger a rebuild and newly-live streams fetch their HLS URL), HLS.js
+  playback with lease credentials plus a native-HLS fallback for pre-17.1 iOS
+  Safari (credentials via mediamtx query params), Auto/1/2/3/4-column layout
+  switcher persisted in localStorage (manual counts scroll vertically with
+  16:9 cells), single scrollable column + slimmed header + safe-area insets
+  on phones, parallel metadata fetches, overlays no longer block native video
+  controls, Firefox layout fixes.
 - `api/web/src/components/CloudTAK/Menu/Videos/VideoRecordingsPage.vue` *(new)* —
   Recordings browser: search/sort, collapsible per-lease groups, file sizes,
   storage totals, admin-only delete.
 - `api/web/src/components/CloudTAK/Menu/Videos/VideoRecordingsModal.vue` *(new)* —
   Recording playback/download modal.
 - `api/web/src/components/CloudTAK/Menu/MenuVideos.vue` — Video wall button and
-  recordings entry in the Videos menu; lease-usage indicator and recordings
-  entry hidden when the entitlement API disallows them.
+  recordings entry in the Videos menu; lease-usage indicator ("N of M plan
+  leases used"); recordings entry shows a "Recording Not Available" upsell
+  overlay (message text supplied by the entitlement API) when the plan
+  disallows recording.
 - `api/web/src/components/CloudTAK/Menu/Videos/VideoLeaseModal.vue` — Record
-  Stream toggle hidden when the entitlement API disallows recording.
+  Stream toggle shows the same upsell overlay when recording is not entitled
+  (toggle snaps back off). Lease duration is a unit + value control
+  (Hours/Days, digits-only input; Permanent offered to system admins only)
+  instead of fixed hour presets.
 - `api/web/src/components/CloudTAK/util/FloatingVideo.vue` — Debounced buffering
   overlay, reduced HLS buffer for live streams.
 - `api/web/src/App.vue` — Polls `/api/video/paths` every 30s for the sidebar
