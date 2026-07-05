@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { StandardResponse, VideoLeaseResponse } from '../lib/types.js';
 import { VideoLease_SourceType } from '../lib/enums.js';
 import ECSVideoControl, { Protocols } from '../lib/control/video-service.js';
+import Entitlement from '../lib/entitlement.js';
 import * as Default from '../lib/limits.js';
 
 export default async function router(schema: Schema, config: Config) {
@@ -241,6 +242,13 @@ export default async function router(schema: Schema, config: Config) {
                 throw new Err(400, null, 'Only Administrators can request a lease > 24 hours');
             }
 
+            await Entitlement.enforce(config, {
+                username: null,
+                isSystemAdmin: isAdmin,
+                creating: true,
+                recording: req.body.recording,
+            });
+
             const lease = await videoControl.generate({
                 name: req.body.name,
                 channel: req.body.channel,
@@ -337,6 +345,13 @@ export default async function router(schema: Schema, config: Config) {
             } else if (!isAdmin && req.body.permanent) {
                 throw new Err(400, null, 'Only Administrators can request permanent leases');
             }
+
+            await Entitlement.enforce(config, {
+                username: null,
+                isSystemAdmin: isAdmin,
+                creating: false,
+                recording: req.body.recording,
+            });
 
             if (req.body.secure === false && req.body.secure_rotate) {
                 throw new Err(400, null, 'Secure_Rotate infers Secure: true');

@@ -45,7 +45,16 @@ feature set**, plus a few operational tweaks. Modified/added files:
   access control (owner / shared / admin), recordings directory deleted from
   disk when a lease is deleted. Fix: metadata endpoint passes
   `ProtocolPopulation.READ` so real (not placeholder) read credentials are
-  returned.
+  returned. Also: `GET /video/entitlement` (current user's lease limits) and
+  entitlement enforcement on lease create/update.
+- `api/lib/entitlement.ts` *(new)* — Optional external entitlement API client:
+  when `ENTITLEMENT_API_URL` + `ENTITLEMENT_API_TOKEN` are set, video-lease
+  creation is limited (max lease count per account) and stream recording can
+  be disallowed, per the policy returned by the API. Cached with
+  stale-on-error fallback; system admins and self-hosted installs (vars
+  unset) are unaffected.
+- `api/routes/connection-video-lease.ts` — same entitlement enforcement for
+  connection-owned leases.
 
 ### Frontend (api/web/)
 
@@ -59,7 +68,10 @@ feature set**, plus a few operational tweaks. Modified/added files:
 - `api/web/src/components/CloudTAK/Menu/Videos/VideoRecordingsModal.vue` *(new)* —
   Recording playback/download modal.
 - `api/web/src/components/CloudTAK/Menu/MenuVideos.vue` — Video wall button and
-  recordings entry in the Videos menu.
+  recordings entry in the Videos menu; lease-usage indicator and recordings
+  entry hidden when the entitlement API disallows them.
+- `api/web/src/components/CloudTAK/Menu/Videos/VideoLeaseModal.vue` — Record
+  Stream toggle hidden when the entitlement API disallows recording.
 - `api/web/src/components/CloudTAK/util/FloatingVideo.vue` — Debounced buffering
   overlay, reduced HLS buffer for live streams.
 - `api/web/src/App.vue` — Polls `/api/video/paths` every 30s for the sidebar
@@ -78,7 +90,8 @@ feature set**, plus a few operational tweaks. Modified/added files:
 
 - `docker-compose.yml` — Persistent bind mounts: `.docker-media-recordings` →
   `/recordings` (api + media containers) and `.docker-postgis` for the
-  database.
+  database. `ENTITLEMENT_API_URL` / `ENTITLEMENT_API_TOKEN` passed to the api
+  container (empty by default).
 - `.dockerignore` *(new)* — keeps local data dirs (recordings, postgis, store)
   and `node_modules` out of the Docker build context.
 - `api/package.json`, `api/web/package.json` — custom version scheme.

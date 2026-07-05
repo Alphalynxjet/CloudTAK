@@ -14,6 +14,7 @@ import { VideoLease_SourceType, AllBoolean, AllBooleanCast } from '../lib/enums.
 import { VideoLease } from '../lib/schema.js';
 import { eq } from 'drizzle-orm';
 import ECSVideoControl, { Action, Protocols, PathListItem, PathsList, ProtocolPopulation, Recording } from '../lib/control/video-service.js';
+import Entitlement from '../lib/entitlement.js';
 import * as Default from '../lib/limits.js';
 import { TAKAPI, APIAuthCertificate } from '@tak-ps/node-tak';
 
@@ -201,6 +202,48 @@ export default async function router(schema: Schema, config: Config) {
         }
     });
 
+    await schema.get('/video/entitlement', {
+        name: 'Video Entitlement',
+        group: 'VideoLease',
+        description: `
+            Video-lease limits for the current user as dictated by the entitlement
+            API configured for this instance. Unmanaged (self-hosted) instances and
+            system admins report managed: false — no limits apply.
+        `,
+        res: Type.Object({
+            managed: Type.Boolean({ description: 'Whether plan limits apply to this user' }),
+            plan: Type.Union([Type.Null(), Type.String()]),
+            max_leases: Type.Union([Type.Null(), Type.Integer()], { description: 'null = unlimited' }),
+            recording: Type.Boolean(),
+            recording_message: Type.Union([Type.Null(), Type.String()], { description: 'Shown when a user without recording entitlement attempts to enable it' }),
+            used_leases: Type.Integer(),
+        }),
+    }, async (req, res) => {
+        try {
+            const user = await Auth.as_user(config, req);
+
+            const isSystemAdmin = user.access === AuthUserAccess.ADMIN;
+            const ent = (!isSystemAdmin && Entitlement.configured())
+                ? await Entitlement.entitlement(user.email)
+                : null;
+
+            if (!ent) {
+                res.json({ managed: false, plan: null, max_leases: null, recording: true, recording_message: null, used_leases: 0 });
+            } else {
+                res.json({
+                    managed: true,
+                    plan: ent.plan,
+                    max_leases: ent.max_leases,
+                    recording: ent.recording,
+                    recording_message: ent.recording_message ?? null,
+                    used_leases: await Entitlement.countLeases(config, ent, user.email),
+                });
+            }
+        } catch (err) {
+            Err.respond(err, res);
+        }
+    });
+
     await schema.get('/video/lease', {
         name: 'List Leases',
         group: 'VideoLease',
@@ -357,7 +400,7 @@ export default async function router(schema: Schema, config: Config) {
                 throw new Err(401, null, 'Unauthorized');
             }
 
-            const protocols = await videoControl.protocols(lease, ProtocolPopulation.READ)
+            const protocols = await videoControl.protocols(lease, ProtocolPopulation.READ);
 
             try {
                 res.json({
@@ -427,6 +470,14 @@ export default async function router(schema: Schema, config: Config) {
                 throw new Err(400, null, 'Only Administrators can request permanent leases');
             }
 
+            await Entitlement.enforce(config, {
+                username: user.email,
+                isSystemAdmin: user.access === AuthUserAccess.ADMIN,
+                creating: true,
+                ephemeral: req.body.ephemeral,
+                recording: req.body.recording,
+            });
+
             const lease = await videoControl.generate({
                 name: req.body.name,
                 ephemeral: req.body.ephemeral,
@@ -494,6 +545,13 @@ export default async function router(schema: Schema, config: Config) {
                 throw new Err(400, null, 'Only Administrators can request permanent leases');
             }
 
+            await Entitlement.enforce(config, {
+                username: user.email,
+                isSystemAdmin: user.access === AuthUserAccess.ADMIN,
+                creating: false,
+                recording: req.body.recording,
+            });
+
             const lease = await videoControl.commit(req.params.lease, {
                 name: req.body.name,
                 channel: req.body.channel ? req.body.channel : null,
@@ -531,7 +589,7 @@ export default async function router(schema: Schema, config: Config) {
 
             const lease = await videoControl.from(req.params.lease, {
                 username: user.email,
-                admin: user.access === AuthUserAccess.ADMIN
+                admin: user.access === AuthUserAccess.ADMIN,
             });
 
             await videoControl.delete(req.params.lease, {
@@ -564,9 +622,9 @@ export default async function router(schema: Schema, config: Config) {
                 path: Type.String(),
                 lease_id: Type.Union([Type.Integer(), Type.Null()]),
                 lease_name: Type.Union([Type.String(), Type.Null()]),
-                segments: Type.Array(Type.Object({ start: Type.String(), size: Type.Integer({ default: 0 }) }))
-            }))
-        })
+                segments: Type.Array(Type.Object({ start: Type.String(), size: Type.Integer({ default: 0 }) })),
+            })),
+        }),
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req);
@@ -575,18 +633,18 @@ export default async function router(schema: Schema, config: Config) {
             const leaseList = await config.models.VideoLease.list({
                 limit: 1000,
                 page: 0,
-                where: undefined
+                where: undefined,
             });
 
             // Filter leases visible to this user
-            const visibleLeases = leaseList.items.filter(l => {
+            const visibleLeases = leaseList.items.filter((l) => {
                 if (isAdmin) return true;
                 if (l.username === user.email) return true;
                 if (l.share) return true;
                 return false;
             });
 
-            const leaseByPath = new Map<string, { id: number, name: string, username: string | null, share: boolean }>();
+            const leaseByPath = new Map<string, { id: number; name: string; username: string | null; share: boolean }>();
             for (const l of leaseList.items) {
                 leaseByPath.set(l.path, { id: l.id, name: l.name, username: l.username, share: l.share });
             }
@@ -603,19 +661,19 @@ export default async function router(schema: Schema, config: Config) {
 
             const allRecs = await videoControl.recordingsByPaths([...leasePaths]);
 
-            const items = allRecs.map(rec => {
+            const items = allRecs.map((rec) => {
                 const lease = leaseByPath.get(rec.path);
                 return {
                     path: rec.path,
                     lease_id: lease?.id ?? null,
                     lease_name: lease?.name ?? null,
-                    segments: rec.segments
+                    segments: rec.segments,
                 };
             });
 
             res.json({
                 total_segments: items.reduce((sum, r) => sum + r.segments.length, 0),
-                items
+                items,
             });
         } catch (err) {
             Err.respond(err, res);
@@ -626,7 +684,7 @@ export default async function router(schema: Schema, config: Config) {
         name: 'List Media Paths',
         group: 'VideoLease',
         description: 'List all active paths on the media server',
-        res: PathsList
+        res: PathsList,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req);
@@ -641,13 +699,13 @@ export default async function router(schema: Schema, config: Config) {
         group: 'VideoLease',
         description: 'List recorded segments for a video lease',
         params: Type.Object({
-            lease: Type.Union([Type.Integer(), Type.String()])
+            lease: Type.Union([Type.Integer(), Type.String()]),
         }),
-        res: Recording
+        res: Recording,
     }, async (req, res) => {
         try {
             const auth = await Auth.is_auth(config, req, {
-                resources: [{ access: AuthResourceAccess.LEASE, id: undefined }]
+                resources: [{ access: AuthResourceAccess.LEASE, id: undefined }],
             });
 
             let lease: Static<typeof VideoLeaseResponse>;
@@ -657,7 +715,7 @@ export default async function router(schema: Schema, config: Config) {
                 const user = auth as AuthUser;
                 lease = await videoControl.from(req.params.lease, {
                     username: user.email,
-                    admin: user.access === AuthUserAccess.ADMIN
+                    admin: user.access === AuthUserAccess.ADMIN,
                 });
             } else {
                 throw new Err(401, null, 'Unauthorized');
@@ -676,19 +734,19 @@ export default async function router(schema: Schema, config: Config) {
         group: 'VideoLease',
         description: 'Delete a single recorded segment for a video lease',
         params: Type.Object({
-            lease: Type.Union([Type.Integer(), Type.String()])
+            lease: Type.Union([Type.Integer(), Type.String()]),
         }),
         query: Type.Object({
-            start: Type.String({ description: 'Segment start timestamp (ISO 8601)' })
+            start: Type.String({ description: 'Segment start timestamp (ISO 8601)' }),
         }),
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req);
 
             const lease = await videoControl.from(req.params.lease, {
                 username: user.email,
-                admin: user.access === AuthUserAccess.ADMIN
+                admin: user.access === AuthUserAccess.ADMIN,
             });
 
             if (!lease.recording) throw new Err(400, null, 'Recording is not enabled for this lease');
@@ -706,20 +764,20 @@ export default async function router(schema: Schema, config: Config) {
         group: 'VideoLease',
         description: 'Stream a recorded segment — supports ?token= for browser <video> playback',
         params: Type.Object({
-            lease: Type.Union([Type.Integer(), Type.String()])
+            lease: Type.Union([Type.Integer(), Type.String()]),
         }),
         query: Type.Object({
             start: Type.String({ description: 'Segment start timestamp (ISO 8601)' }),
-            token: Type.Optional(Type.String({ description: 'JWT token (alternative to Authorization header, for browser video elements)' }))
+            token: Type.Optional(Type.String({ description: 'JWT token (alternative to Authorization header, for browser video elements)' })),
         }),
-        res: Type.Any()
+        res: Type.Any(),
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req, { token: true });
 
             const lease = await videoControl.from(req.params.lease, {
                 username: user.email,
-                admin: user.access === AuthUserAccess.ADMIN
+                admin: user.access === AuthUserAccess.ADMIN,
             });
 
             if (!lease.recording) throw new Err(400, null, 'Recording is not enabled for this lease');
@@ -749,18 +807,18 @@ export default async function router(schema: Schema, config: Config) {
         params: Type.Object({ path: Type.String() }),
         query: Type.Object({
             start: Type.String(),
-            token: Type.Optional(Type.String())
+            token: Type.Optional(Type.String()),
         }),
-        res: Type.Any()
+        res: Type.Any(),
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req, { token: true });
             if (user.access !== AuthUserAccess.ADMIN) throw new Err(403, null, 'Admin access required');
 
             const fileStream = videoControl.streamRecordingSegment(req.params.path, req.query.start);
-            const filePath   = videoControl.recordingFilePath(req.params.path, req.query.start);
-            const stat       = fs.statSync(filePath);
-            const filename   = `${req.params.path}-${req.query.start}.mp4`.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const filePath = videoControl.recordingFilePath(req.params.path, req.query.start);
+            const stat = fs.statSync(filePath);
+            const filename = `${req.params.path}-${req.query.start}.mp4`.replace(/[^a-zA-Z0-9._-]/g, '_');
 
             res.setHeader('Content-Type', 'video/mp4');
             res.setHeader('Content-Length', stat.size);
@@ -779,7 +837,7 @@ export default async function router(schema: Schema, config: Config) {
         description: 'Delete a recorded segment by path UUID — for recordings whose lease has been deleted',
         params: Type.Object({ path: Type.String() }),
         query: Type.Object({ start: Type.String() }),
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req);
@@ -798,15 +856,15 @@ export default async function router(schema: Schema, config: Config) {
         description: 'Returns all active mediamtx paths and non-expired leases for the video wall',
         res: Type.Object({
             paths: Type.Array(Type.Object({ name: Type.String(), ready: Type.Boolean(), readers: Type.Integer() })),
-            leases: Type.Array(VideoLeaseResponse)
-        })
+            leases: Type.Array(VideoLeaseResponse),
+        }),
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { token: true });
 
             const [pathsList, leaseList] = await Promise.all([
                 videoControl.pathsList(),
-                config.models.VideoLease.list({ limit: 1000, page: 0, where: undefined })
+                config.models.VideoLease.list({ limit: 1000, page: 0, where: undefined }),
             ]);
 
             const leases = leaseList.items.filter(l => !l.ephemeral);
@@ -815,9 +873,9 @@ export default async function router(schema: Schema, config: Config) {
                 paths: (pathsList.items ?? []).map(p => ({
                     name: p.name,
                     ready: p.ready,
-                    readers: Array.isArray(p.readers) ? p.readers.length : 0
+                    readers: Array.isArray(p.readers) ? p.readers.length : 0,
                 })),
-                leases
+                leases,
             });
         } catch (err) {
             Err.respond(err, res);
@@ -829,7 +887,7 @@ export default async function router(schema: Schema, config: Config) {
         group: 'VideoLease',
         description: 'Return the HLS stream URL for an active mediamtx path by name',
         params: Type.Object({ path: Type.String() }),
-        res: Type.Object({ url: Type.String() })
+        res: Type.Object({ url: Type.String() }),
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { token: true });

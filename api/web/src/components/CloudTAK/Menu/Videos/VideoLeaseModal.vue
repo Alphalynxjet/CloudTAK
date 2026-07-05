@@ -509,14 +509,51 @@
                 </div>
             </div>
         </template>
+
+        <!-- Recording not included in plan — upsell overlay -->
+        <div
+            v-if='showRecordingUpsell'
+            class='d-flex align-items-center justify-content-center'
+            style='position: fixed; inset: 0; z-index: 10500; background: rgba(0, 0, 0, 0.6);'
+            @click.self='showRecordingUpsell = false'
+        >
+            <div
+                class='card mx-3'
+                style='max-width: 420px;'
+            >
+                <div class='card-body text-center py-4'>
+                    <IconVideoOff
+                        :size='48'
+                        stroke='1'
+                        class='text-secondary'
+                    />
+                    <h3 class='mt-3'>
+                        Recording Not Available
+                    </h3>
+                    <div
+                        class='text-secondary'
+                        v-text='recordingMessage'
+                    />
+                </div>
+                <div class='card-footer d-flex justify-content-center'>
+                    <button
+                        class='btn btn-primary'
+                        style='width: 120px;'
+                        @click='showRecordingUpsell = false'
+                    >
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
     </TablerModal>
 </template>
 
 <script setup lang='ts'>
-import { server } from '../../../../std.ts';
+import { server, std } from '../../../../std.ts';
 import { validateURL } from '../../../../base/validators.ts';
 import CopyField from '../../util/CopyField.vue';
-import { ref, onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import type { paths } from '@cloudtak/api-types';
 import type { VideoLease, VideoLeaseProtocols } from '../../../../types.ts';
 import VideoLeaseSourceType from '../../util/VideoLeaseSourceType.vue'
@@ -525,6 +562,7 @@ import {
     IconDrone,
     IconServer,
     IconPencil,
+    IconVideoOff,
     IconWand,
     IconArrowsLeftRight,
     IconBook2,
@@ -562,6 +600,21 @@ const wizard = ref(0);
 const protocols = ref<VideoLeaseProtocols>({});
 
 const channels = ref<string[]>([]);
+
+// Plan entitlement — instances managed by an external entitlement API may not
+// allow recording. Defaults to allowed (self-hosted / fetch failure). The
+// toggle stays visible; flipping it without entitlement reverts the value and
+// shows an upsell overlay with the API-supplied message.
+const allowRecording = ref(true);
+const recordingMessage = ref('Your current plan does not include video recording.');
+const showRecordingUpsell = ref(false);
+
+watch(() => editLease.value.recording, (recording) => {
+    if (recording && !allowRecording.value) {
+        editLease.value.recording = false;
+        showRecordingUpsell.value = true;
+    }
+});
 
 const durations = ref<Array<string>>(["16 Hours", "12 Hours", "6 Hours", "1 Hour"]);
 
@@ -603,6 +656,16 @@ const editLease = ref<{
 onMounted(async () => {
     if (props.isSystemAdmin) {
         durations.value.push('Permanent');
+    }
+
+    try {
+        const ent = await std('/api/video/entitlement') as { managed: boolean; recording: boolean; recording_message: string | null };
+        if (ent.managed && !ent.recording) {
+            allowRecording.value = false;
+            if (ent.recording_message) recordingMessage.value = ent.recording_message;
+        }
+    } catch (err) {
+        console.error('Failed to fetch video entitlement', err);
     }
 
     if (props.lease.id) {

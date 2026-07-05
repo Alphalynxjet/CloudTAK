@@ -23,6 +23,8 @@ services:
             - POSTGRES=${POSTGRES}
             - API_URL=${API_URL}
             - PMTILES_URL=${PMTILES_URL}
+            - ENTITLEMENT_API_URL=${ENTITLEMENT_API_URL:-}
+            - ENTITLEMENT_API_TOKEN=${ENTITLEMENT_API_TOKEN:-}
 
     tiles:
         build:

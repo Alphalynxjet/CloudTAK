@@ -25,6 +25,7 @@
             </TablerIconButton>
 
             <TablerIconButton
+                v-if='entitlement.recording'
                 title='All Recordings'
                 @click='showRecordingsPage = true'
             >
@@ -140,7 +141,9 @@
                             <div
                                 v-if='activePaths.has(connection.uuid)'
                                 class='text-success small'
-                            >Live</div>
+                            >
+                                Live
+                            </div>
                         </div>
 
                         <div class='d-flex btn-list ms-auto'>
@@ -184,7 +187,9 @@
                                     class='fst-italic text-secondary'
                                 >Unnamed</span>
                             </div>
-                            <div class='text-success small'>Live</div>
+                            <div class='text-success small'>
+                                Live
+                            </div>
                         </div>
                     </StandardItem>
                     <StandardItem
@@ -222,6 +227,18 @@
                         icon='search'
                         placeholder='Lease Search'
                     />
+                </div>
+                <div
+                    v-if='entitlement.managed && entitlement.max_leases !== null'
+                    class='col-12 d-flex align-items-center px-2 pt-2 user-select-none'
+                >
+                    <span class='text-secondary small'>
+                        {{ entitlement.used_leases }} of {{ entitlement.max_leases }} plan lease{{ entitlement.max_leases === 1 ? '' : 's' }} used
+                    </span>
+                    <span
+                        v-if='entitlement.used_leases >= entitlement.max_leases'
+                        class='badge bg-yellow text-dark ms-auto'
+                    >Lease limit reached</span>
                 </div>
                 <TablerLoading
                     v-if='loading.leases'
@@ -384,6 +401,23 @@ const loading = ref({
 const lease = ref();
 const showRecordingsPage = ref(false);
 const isSystemAdmin = ref(false);
+
+// Plan entitlement from the (optional) external entitlement API — defaults
+// mean "no limits" for self-hosted instances or if the fetch fails.
+const entitlement = ref<{
+    managed: boolean;
+    max_leases: number | null;
+    recording: boolean;
+    used_leases: number;
+}>({ managed: false, max_leases: null, recording: true, used_leases: 0 });
+
+async function fetchEntitlement(): Promise<void> {
+    try {
+        entitlement.value = await std('/api/video/entitlement') as typeof entitlement.value;
+    } catch (err) {
+        console.error('Failed to fetch video entitlement', err);
+    }
+}
 const leases = ref<{ total: number, items: VideoLease[] }>({ total: 0, items: [] });
 const connections = ref<VideoConnectionList>({ videoConnections: [] });
 const activePaths = ref<Set<string>>(new Set());
@@ -441,6 +475,7 @@ onMounted(async () => {
         isSystemAdmin.value = true;
     }
 
+    await fetchEntitlement();
     await fetchConnections();
     await fetchLeases();
 
@@ -482,6 +517,8 @@ async function fetchLeases(): Promise<void> {
         if (res.error) throw new Error(res.error.message);
 
         leases.value = res.data;
+
+        fetchEntitlement().catch(() => {});
     } catch (err) {
         error.value = err instanceof Error ? err : new Error(String(err));
     }
