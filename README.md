@@ -1,4 +1,13 @@
-## Upstream sync status
+## About this fork
+
+This is a fork of [dfpc-coe/CloudTAK](https://github.com/dfpc-coe/CloudTAK)
+maintained for **our own server deployment** — it is not a general-purpose
+distribution, and changes here are tailored to our environment.
+
+**Versioning:** this fork uses its own version scheme in
+`api/package.json` / `api/web/package.json` instead of upstream's semver.
+
+### Upstream sync status
 
 | | |
 |---|---|
