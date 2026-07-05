@@ -3,9 +3,11 @@
         <TablerBadge
             v-if='connection.agency'
             class='cursor-pointer'
-            :background-color='muted ? "rgba(59, 130, 246, 0.15)" : "rgba(59, 130, 246, 0.25)"'
-            :border-color='muted ? "rgba(59, 130, 246, 0.3)" : "rgba(59, 130, 246, 0.5)"'
+            background-color='rgba(59, 130, 246, 0.15)'
+            border-color='rgba(59, 130, 246, 0.3)'
             text-color='#2563eb'
+            hover-background-color='rgba(59, 130, 246, 0.25)'
+            hover-border-color='rgba(59, 130, 246, 0.5)'
             style='height: 20px'
             @click='info.shown = true'
         >
@@ -13,8 +15,8 @@
         </TablerBadge>
         <TablerBadge
             v-else
-            :background-color='muted ? "rgba(239, 68, 68, 0.15)" : "rgba(239, 68, 68, 0.2)"'
-            :border-color='muted ? "rgba(239, 68, 68, 0.3)" : "rgba(239, 68, 68, 0.5)"'
+            background-color='rgba(239, 68, 68, 0.15)'
+            border-color='rgba(239, 68, 68, 0.3)'
             text-color='#dc2626'
             style='height: 20px'
         >
@@ -76,11 +78,10 @@ import {
     TablerLoading
 } from '@tak-ps/vue-tabler';
 import type { ETLConnection, ETLAgency } from '../../../types.ts';
-import { std } from '../../../std.ts';
+import { server } from '../../../std.ts';
 
 const props = defineProps<{
     connection: ETLConnection,
-    muted?: boolean
 }>()
 
 const info = ref({ shown: false });
@@ -97,6 +98,21 @@ onMounted(async () => {
 });
 
 async function fetch() {
-    agency.value = await std(`/api/agency/${props.connection.agency}`) as ETLAgency;
+    if (!props.connection.agency) {
+        agency.value = undefined;
+        return;
+    }
+
+    const res = await server.GET('/api/agency/{:agencyid}', {
+        params: {
+            path: {
+                ':agencyid': props.connection.agency,
+            }
+        }
+    });
+
+    if (res.error) throw new Error(res.error.message);
+
+    agency.value = res.data as ETLAgency;
 }
 </script>

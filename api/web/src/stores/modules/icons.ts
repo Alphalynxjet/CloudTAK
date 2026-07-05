@@ -1,18 +1,20 @@
 /**
  * Icon Color Manager for runtime icon recoloring
  */
+import { Preferences } from '@capacitor/preferences';
 import ms from 'milsymbol'
-import mapgl from 'maplibre-gl'
-import Icon from '../../base/icon.ts'
+import * as mapgl from 'maplibre-gl'
+import Icon, { type IconHydrateResult } from '../../base/icon.ts'
+import IconsetManager from '../../base/iconset.ts';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import type * as Comlink from 'comlink';
-import type Atlas from '../../workers/atlas.ts';
-import type { IconHydrateResult } from '../../workers/atlas-icons.ts';
 import { stdurl } from '../../std.ts';
-import { db, type DBIconset, type DBSprite } from '../../base/database.ts';
+import { db, type DBIconset, type DBSprite } from '../../database.ts';
 
 /** Image id for the on-demand fallback when an iconset icon isn't available locally. */
 const FALLBACK_IMAGE_ID = '__cloudtak_fallback_point__';
+
+/** Target render width (px) used when rasterizing SVG iconset icons; height preserves the source aspect ratio. */
+const SVG_RENDER_WIDTH = 32;
 
 /**
  * Custom MapLibre protocol used to serve built-in spritesheets out of Dexie
@@ -26,16 +28,14 @@ let spriteProtocolRegistered = false;
 export default class IconManager {
     private cache = new Map<string, HTMLCanvasElement>();
     private map: MapLibreMap;
-    private worker: Comlink.Remote<Atlas>;
     private loggedMissingImageIds = new Set<string>();
     private loggedErrors = new Set<string>();
     private inflightImage = new Map<string, Promise<boolean>>();
     private fallbackBitmap: ImageBitmap | null = null;
     private requestedIconsetImageIds = new Set<string>();
 
-    constructor(map: MapLibreMap, worker: Comlink.Remote<Atlas>) {
+    constructor(map: MapLibreMap) {
         this.map = map;
-        this.worker = worker;
     }
 
     private logWarnOnce(key: string, message: string, context?: Record<string, unknown>): void {
@@ -118,12 +118,11 @@ export default class IconManager {
     /**
      * Hydrate the local Dexie icon cache from the API.
      *
-     * The actual network IO and base64 -> Blob decoding runs inside the Atlas
-     * worker (see `AtlasIcons.hydrate`); this method only handles main-thread
-     * concerns like purging stale MapLibre images.
+     * This method also handles main-thread concerns like purging stale MapLibre
+     * images when the local Dexie cache changes.
      */
     async hydrate(opts: { force?: boolean } = {}): Promise<void> {
-        const result = await this.worker.icons.hydrate({ force: !!opts.force }) as IconHydrateResult;
+        const result = await Icon.hydrate({ token: await getToken(), force: !!opts.force }) as IconHydrateResult;
         await this.applyHydrateResult(result);
     }
 
@@ -132,17 +131,25 @@ export default class IconManager {
      * reference a specific iconset so it is available even if the user-wide
      * hydrate hasn't completed yet.
      */
-    async addIconset(uid: string): Promise<void> {
-        const updated = await this.worker.icons.addIconset(uid);
+    async addIconset(uid: string, opts: { force?: boolean } = {}): Promise<void> {
+        const updated = await Icon.addIconset(uid, { token: await getToken(), force: !!opts.force });
         if (updated) await this.reloadIconsetImages(uid);
     }
 
     async removeIconset(uid: string): Promise<void> {
-        const removed = await this.worker.icons.removeIconset(uid);
-        if (removed) {
+        const cached = await IconsetManager.from(uid);
+        await IconsetManager.delete(uid, { localOnly: true });
+
+        if (cached) {
             this.purgeMapImagesForIconset(uid);
             this.removeRequestedImagesForIconset(uid);
         }
+    }
+
+    async deleteIconset(uid: string): Promise<void> {
+        await IconsetManager.delete(uid);
+        this.purgeMapImagesForIconset(uid);
+        this.removeRequestedImagesForIconset(uid);
     }
 
     private async applyHydrateResult(result: IconHydrateResult): Promise<void> {
@@ -231,7 +238,7 @@ export default class IconManager {
                 const row = await Icon.get(id);
 
                 if (row) {
-                    const bitmap = await createImageBitmap(row.data);
+                    const bitmap = await this.decodeIconBlob(row.data);
                     if (!this.map.hasImage(id)) {
                         this.map.addImage(id, bitmap);
                     }
@@ -257,6 +264,103 @@ export default class IconManager {
 
         this.inflightImage.set(id, work);
         return work;
+    }
+
+    /**
+     * Decode an iconset blob into an `ImageBitmap`.
+     *
+     * Raster formats (PNG/JPEG/...) decode directly via `createImageBitmap`.
+     * SVG blobs need special handling: `createImageBitmap` cannot decode
+     * `image/svg+xml` blobs in some browsers (notably Firefox, which rejects
+     * with a `DOMException`), so those are rasterized through an
+     * `HTMLImageElement` + `<canvas>` instead.
+     */
+    private async decodeIconBlob(blob: Blob): Promise<ImageBitmap> {
+        if (blob.type === 'image/svg+xml') {
+            return await this.decodeSvgBlob(blob);
+        }
+
+        try {
+            return await createImageBitmap(blob);
+        } catch {
+            // Fall back to the canvas rasterization path for blobs that
+            // `createImageBitmap` can't decode directly (e.g. SVGs served
+            // without an accurate MIME type).
+            return await this.decodeSvgBlob(blob);
+        }
+    }
+
+    /**
+     * Rasterize an SVG blob into an `ImageBitmap` via an `HTMLImageElement`
+     * drawn onto a `<canvas>`. Many iconset SVGs only declare a `viewBox` and
+     * no intrinsic `width`/`height`; without an explicit size browsers fall
+     * back to a 300x150 default, so the size is derived from the viewBox and
+     * set explicitly before rasterizing.
+     */
+    private async decodeSvgBlob(blob: Blob): Promise<ImageBitmap> {
+        const text = await blob.text();
+
+        const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+        const svgEl = doc.documentElement;
+
+        if (!svgEl || svgEl.nodeName.toLowerCase() !== 'svg') {
+            throw new Error('Invalid SVG icon payload');
+        }
+
+        let width = parseFloat(svgEl.getAttribute('width') ?? '');
+        let height = parseFloat(svgEl.getAttribute('height') ?? '');
+
+        if (!(width > 0) || !(height > 0)) {
+            const viewBox = (svgEl.getAttribute('viewBox') ?? '')
+                .split(/[\s,]+/)
+                .map(Number);
+
+            if (viewBox.length === 4 && viewBox[2] > 0 && viewBox[3] > 0) {
+                width = viewBox[2];
+                height = viewBox[3];
+            }
+        }
+
+        if (!(width > 0) || !(height > 0)) {
+            width = SVG_RENDER_WIDTH;
+            height = SVG_RENDER_WIDTH;
+        }
+
+        // Rasterize at a fixed 32px width so icons render consistently, while
+        // preserving the source aspect ratio.
+        const scale = SVG_RENDER_WIDTH / width;
+        const renderWidth = Math.max(1, Math.round(width * scale));
+        const renderHeight = Math.max(1, Math.round(height * scale));
+
+        svgEl.setAttribute('width', String(renderWidth));
+        svgEl.setAttribute('height', String(renderHeight));
+
+        const normalized = new XMLSerializer().serializeToString(svgEl);
+        const url = URL.createObjectURL(new Blob([normalized], { type: 'image/svg+xml' }));
+
+        try {
+            const img = new Image();
+            img.decoding = 'async';
+
+            await new Promise<void>((resolve, reject) => {
+                img.onload = () => { resolve(); };
+                img.onerror = () => { reject(new Error('Failed to decode SVG icon')); };
+                img.src = url;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = renderWidth;
+            canvas.height = renderHeight;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Canvas 2D context unavailable for SVG icon');
+
+            ctx.drawImage(img, 0, 0, renderWidth, renderHeight);
+
+            return await createImageBitmap(canvas);
+        } finally {
+            URL.revokeObjectURL(url);
+        }
     }
 
     private async reloadIconsetImages(uid: string): Promise<void> {
@@ -468,13 +572,16 @@ export default class IconManager {
 
 /**
  * Fallback path for the sprite protocol: when Dexie has no row for the
- * requested built-in sprite (typically only on a brand-new install where
- * `AtlasIcons.hydrate` hasn't completed yet) fetch it from the API and
- * persist it so the next request is served from disk.
+ * requested built-in sprite (typically only on a brand-new install where icon
+ * hydration hasn't completed yet) fetch it from the API and persist it so the
+ * next request is served from disk.
  */
 async function fetchAndCacheSprite(id: string): Promise<DBSprite> {
-    const jsonUrl = stdurl(`/api/iconset/${id}/sprite.json?token=${localStorage.token}`);
-    const pngUrl = stdurl(`/api/iconset/${id}/sprite.png?token=${localStorage.token}`);
+    const token = await getToken();
+    const jsonUrl = stdurl(`/api/iconset/${id}/sprite.json`);
+    const pngUrl = stdurl(`/api/iconset/${id}/sprite.png`);
+    if (token) jsonUrl.searchParams.set('token', token);
+    if (token) pngUrl.searchParams.set('token', token);
 
     const [jsonRes, pngRes] = await Promise.all([fetch(jsonUrl), fetch(pngUrl)]);
     if (!jsonRes.ok) throw new Error(`Failed to load sprite '${id}' json (${jsonRes.status})`);
@@ -486,4 +593,10 @@ async function fetchAndCacheSprite(id: string): Promise<DBSprite> {
     const row: DBSprite = { id, updated: Date.now(), json, image };
     await db.sprite.put(row);
     return row;
+}
+
+async function getToken(): Promise<string> {
+    const { value } = await Preferences.get({ key: 'token' });
+    if (!value) throw new Error('No authentication token available');
+    return value;
 }

@@ -1,19 +1,5 @@
 <template>
-    <TablerModal
-        v-if='mapStore.isMobileDetected'
-        size='xl'
-    >
-        <div
-            ref='menu'
-            class='position-relative w-100 h-100 px-0'
-        >
-            <MainMenuContents
-                :compact='false'
-                :modal='true'
-                @close='router.push("/")'
-            />
-        </div>
-    </TablerModal>
+    <router-view v-if='appStore.isMobileDetected' />
     <template v-else>
         <div
             ref='container'
@@ -48,7 +34,11 @@
                 ref='menu'
                 class='position-relative w-100 h-100 px-0'
             >
-                <MainMenuContents :compact='compact' />
+                <MainMenuContents
+                    v-if='compact'
+                    :compact='true'
+                />
+                <router-view v-else />
             </div>
         </div>
     </template>
@@ -56,16 +46,12 @@
 
 <script setup lang='ts'>
 import { ref, watch, useTemplateRef, onMounted } from 'vue';
-import {
-    TablerModal,
-} from '@tak-ps/vue-tabler';
 import { useMapStore } from '../../stores/map.ts';
-import { useRouter } from 'vue-router';
+import { useAppStore } from '../../stores/app.ts';
 import MainMenuContents from './MainMenuContents.vue';
 
-const router = useRouter();
-
 const mapStore = useMapStore();
+const appStore = useAppStore();
 
 const resizing = ref(false);
 

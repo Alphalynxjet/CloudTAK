@@ -39,7 +39,7 @@ test('POST: api/server/tileset', async () => {
         const res = await flight.fetch('/api/server/tileset', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: form,
         }, false);
@@ -51,7 +51,7 @@ test('POST: api/server/tileset', async () => {
             status: 200,
             message: 'Hosted Tileset Uploaded',
             name: 'ski-areas.pmtiles',
-            path: 'public/ski-areas.pmtiles'
+            path: 'public/ski-areas.pmtiles',
         });
     } catch (err) {
         assert.ifError(err);
@@ -68,7 +68,7 @@ test('POST: api/server/tileset - Requires Admin', async () => {
         const res = await flight.fetch('/api/server/tileset', {
             method: 'POST',
             auth: {
-                bearer: flight.token.user
+                bearer: flight.token.user,
             },
             body: form,
         }, false);
@@ -77,7 +77,7 @@ test('POST: api/server/tileset - Requires Admin', async () => {
         assert.deepEqual(res.body, {
             status: 401,
             message: 'User must be a System Administrator to access this resource',
-            messages: []
+            messages: [],
         });
     } catch (err) {
         assert.ifError(err);

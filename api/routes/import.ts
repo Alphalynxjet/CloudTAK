@@ -1,12 +1,12 @@
 import ImportControl, { ImportSourceEnum, ImportResultTypeEnum } from '../lib/control/import.js';
-import { Type } from '@sinclair/typebox'
+import { Type } from '@sinclair/typebox';
 import path from 'node:path';
 import Schema from '@openaddresses/batch-schema';
 import Err from '@openaddresses/batch-error';
 import { Param } from '@openaddresses/batch-generic';
 import { Busboy } from '@fastify/busboy';
 import Config from '../lib/config.js';
-import S3 from '../lib/aws/s3.js'
+import S3 from '../lib/aws/s3.js';
 import crypto from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import Auth, { AuthResourceAccess, AuthUser } from '../lib/auth.js';
@@ -34,15 +34,15 @@ export default async function router(schema: Schema, config: Config) {
             status: Type.Optional(Type.Enum(Import_Status)),
             sort: Type.String({
                 default: 'created',
-                enum: Object.keys(Import)
+                enum: Object.keys(Import),
             }),
             source: Type.Optional(Type.Enum(ImportSourceEnum)),
-            source_id: Type.Optional(Type.String())
+            source_id: Type.Optional(Type.String()),
         }),
         res: Type.Object({
             total: Type.Integer(),
-            items: Type.Array(ImportResponse)
-        })
+            items: Type.Array(ImportResponse),
+        }),
     }, async (req, res) => {
         try {
             let list;
@@ -67,11 +67,11 @@ export default async function router(schema: Schema, config: Config) {
                             OR ${Param(req.query.filter)}::TEXT = ''
                             OR ${Param(req.query.filter)}::TEXT ~* name
                         )
-                    `
+                    `,
                 });
             } else {
                 const auth = await Auth.is_auth(config, req, {
-                    resources: [{ access: AuthResourceAccess.IMPORT }]
+                    resources: [{ access: AuthResourceAccess.IMPORT }],
                 });
 
                 const username = auth instanceof AuthUser ? auth.email : null;
@@ -91,7 +91,7 @@ export default async function router(schema: Schema, config: Config) {
                             OR ${Param(req.query.filter)}::TEXT = ''
                             OR ${Param(req.query.filter)}::TEXT ~* name
                         )
-                    `
+                    `,
                 });
             }
 
@@ -111,17 +111,17 @@ export default async function router(schema: Schema, config: Config) {
             source_id: Type.Optional(Type.String()),
             config: Type.Optional(Type.Any()),
         }),
-        res: ImportResponse
+        res: ImportResponse,
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req);
 
             const imp = await importControl.create({
                 ...req.body,
-                username: user.email
-            })
+                username: user.email,
+            });
 
-            res.json(imp)
+            res.json(imp);
         } catch (err) {
             Err.respond(err, res);
         }
@@ -131,13 +131,13 @@ export default async function router(schema: Schema, config: Config) {
         name: 'Import',
         group: 'Import',
         params: Type.Object({
-            import: Type.String()
+            import: Type.String(),
         }),
         description: 'Import an asset into a previously configured import container',
         body: {
-            'multipart/form-data': true
+            'multipart/form-data': true,
         },
-        res: ImportResponse
+        res: ImportResponse,
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req);
@@ -154,25 +154,25 @@ export default async function router(schema: Schema, config: Config) {
 
             const bb = new Busboy({
                 headers: {
-                    'content-type': contentType
+                    'content-type': contentType,
                 },
-                limits: { files: 1 }
+                limits: { files: 1 },
             });
 
             const uploads: Promise<unknown>[] = [];
             bb.on('file', async (fieldname, file, filename) => {
-                uploads.push((async function() {
+                uploads.push((async function () {
                     const res = {
                         file: filename,
                         ext: path.parse(filename).ext,
                     };
 
                     try {
-                        await S3.put(`import/${imported.id}${res.ext}`, file)
+                        await S3.put(`import/${imported.id}${res.ext}`, file);
 
                         await config.models.Import.commit(imported.id, {
                             status: Import_Status.PENDING,
-                            error: null
+                            error: null,
                         });
                     } catch (err) {
                         file.resume();
@@ -181,13 +181,13 @@ export default async function router(schema: Schema, config: Config) {
                     }
 
                     return res;
-                })())
+                })());
             }).on('finish', async () => {
                 try {
                     await Promise.all(uploads);
                     // Refetch to get updated status after commit
                     const refetchedImport = await config.models.Import.augmented_from(req.params.import);
-                    res.json(refetchedImport)
+                    res.json(refetchedImport);
                 } catch (err) {
                     Err.respond(err, res);
                 }
@@ -206,15 +206,15 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Import',
         description: 'Import up to 5 unknown assets into the imports manager at a time',
         body: {
-            'multipart/form-data': true
+            'multipart/form-data': true,
         },
         res: Type.Object({
             imports: Type.Array(Type.Object({
                 file: Type.String(),
                 uid: Type.String(),
-                ext: Type.String()
-            }))
-        })
+                ext: Type.String(),
+            })),
+        }),
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req);
@@ -226,9 +226,9 @@ export default async function router(schema: Schema, config: Config) {
 
             const bb = new Busboy({
                 headers: {
-                    'content-type': contentType
+                    'content-type': contentType,
                 },
-                limits: { files: 5 }
+                limits: { files: 5 },
             });
 
             const uploads: Promise<{
@@ -237,11 +237,11 @@ export default async function router(schema: Schema, config: Config) {
                 ext: string;
             }>[] = [];
             bb.on('file', async (fieldname, file, filename) => {
-                uploads.push((async function() {
+                uploads.push((async function () {
                     const res = {
                         file: filename,
                         ext: path.parse(filename).ext,
-                        uid: crypto.randomUUID()
+                        uid: crypto.randomUUID(),
                     };
 
                     // Generate the row in the Empty state so the events worker
@@ -252,15 +252,15 @@ export default async function router(schema: Schema, config: Config) {
                         name: res.file,
                         username: user.email,
                         id: res.uid,
-                        status: Import_Status.EMPTY
+                        status: Import_Status.EMPTY,
                     });
 
                     try {
-                        await S3.put(`import/${res.uid}${res.ext}`, file)
+                        await S3.put(`import/${res.uid}${res.ext}`, file);
 
                         await config.models.Import.commit(res.uid, {
                             status: Import_Status.PENDING,
-                            error: null
+                            error: null,
                         });
                     } catch (err) {
                         file.resume();
@@ -269,11 +269,11 @@ export default async function router(schema: Schema, config: Config) {
                     }
 
                     return res;
-                })())
+                })());
             }).on('finish', async () => {
                 try {
                     res.json({
-                        imports: await Promise.all(uploads)
+                        imports: await Promise.all(uploads),
                     });
                 } catch (err) {
                     Err.respond(err, res);
@@ -293,13 +293,13 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Import',
         description: 'Get Import',
         params: Type.Object({
-            import: Type.String()
+            import: Type.String(),
         }),
-        res: ImportResponse
+        res: ImportResponse,
     }, async (req, res) => {
         try {
             const auth = await Auth.is_auth(config, req, {
-                resources: [{ access: AuthResourceAccess.IMPORT, id: req.params.import }]
+                resources: [{ access: AuthResourceAccess.IMPORT, id: req.params.import }],
             });
 
             const imported = await config.models.Import.augmented_from(req.params.import);
@@ -324,12 +324,12 @@ export default async function router(schema: Schema, config: Config) {
         query: Type.Object({
             download: Type.Boolean({
                 default: false,
-                description: 'Set the Content-Disposition Header'
+                description: 'Set the Content-Disposition Header',
             }),
-            token: Type.Optional(Type.String())
+            token: Type.Optional(Type.String()),
         }),
         params: Type.Object({
-            import: Type.String()
+            import: Type.String(),
         }),
     }, async (req, res) => {
         try {
@@ -349,7 +349,7 @@ export default async function router(schema: Schema, config: Config) {
 
             stream.pipe(res);
         } catch (err) {
-             Err.respond(err, res);
+            Err.respond(err, res);
         }
     });
 
@@ -358,32 +358,32 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Import',
         description: 'Create a new Import Result',
         params: Type.Object({
-            import: Type.String()
+            import: Type.String(),
         }),
         body: Type.Object({
             name: Type.String(),
             type: Type.Enum(ImportResultTypeEnum),
-            type_id: Type.String()
+            type_id: Type.String(),
         }),
-        res: ImportResult
+        res: ImportResult,
     }, async (req, res) => {
         try {
             const auth = await Auth.is_auth(config, req, {
-                resources: [{ access: AuthResourceAccess.IMPORT, id: req.params.import }]
+                resources: [{ access: AuthResourceAccess.IMPORT, id: req.params.import }],
             });
 
             const imported = await config.models.Import.augmented_from(req.params.import);
-            
+
             if (auth instanceof AuthUser) {
-                 const user = auth as AuthUser;
-                 if (imported.username !== user.email && !user.is_admin()) {
-                     throw new Err(400, null, 'You did not create this import');
-                 }
+                const user = auth as AuthUser;
+                if (imported.username !== user.email && !user.is_admin()) {
+                    throw new Err(400, null, 'You did not create this import');
+                }
             }
 
             const result = await config.models.ImportResult.generate({
                 ...req.body,
-                import: req.params.import
+                import: req.params.import,
             });
 
             res.json(result);
@@ -397,17 +397,17 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Import',
         description: 'Update Import',
         params: Type.Object({
-            import: Type.String()
+            import: Type.String(),
         }),
         body: Type.Object({
             status: Type.Optional(Type.Enum(Import_Status)),
-            error: Type.Optional(Type.String())
+            error: Type.Optional(Type.String()),
         }),
-        res: ImportResponse
+        res: ImportResponse,
     }, async (req, res) => {
         try {
             const auth = await Auth.is_auth(config, req, {
-                resources: [{ access: AuthResourceAccess.IMPORT, id: req.params.import }]
+                resources: [{ access: AuthResourceAccess.IMPORT, id: req.params.import }],
             });
 
             const imported = await config.models.Import.augmented_from(req.params.import);
@@ -430,9 +430,9 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Import',
         description: 'Retry a failed import by resetting its status to Pending',
         params: Type.Object({
-            import: Type.String()
+            import: Type.String(),
         }),
-        res: ImportResponse
+        res: ImportResponse,
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req);
@@ -454,13 +454,13 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Import',
         description: 'Delete Import',
         params: Type.Object({
-            import: Type.String()
+            import: Type.String(),
         }),
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
             const auth = await Auth.is_auth(config, req, {
-                resources: [{ access: AuthResourceAccess.IMPORT, id: req.params.import }]
+                resources: [{ access: AuthResourceAccess.IMPORT, id: req.params.import }],
             });
 
             const imported = await config.models.Import.from(req.params.import);
@@ -476,12 +476,10 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 status: 200,
-                message: 'Import Deleted'
+                message: 'Import Deleted',
             });
         } catch (err) {
             Err.respond(err, res);
         }
     });
-
 }
-

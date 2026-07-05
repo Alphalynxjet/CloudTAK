@@ -21,12 +21,25 @@
                 v-if='!share'
                 class='col-12 py-2 d-flex flex-column gap-2'
             >
-                <TablerInput
+                <SearchSortFilter
                     v-model='paging.filter'
-                    class='w-100'
-                    icon='search'
+                    v-model:sort='sort'
+                    :sort-options='sortOptions'
                     placeholder='Filter'
-                />
+                >
+                    <template #sort-icon>
+                        <component
+                            :is='sortTypeIcon'
+                            :size='20'
+                            stroke='1'
+                        />
+                        <component
+                            :is='sortDirectionIcon'
+                            :size='20'
+                            stroke='1'
+                        />
+                    </template>
+                </SearchSortFilter>
 
                 <div
                     v-if='paging.collection'
@@ -162,7 +175,8 @@
 </template>
 
 <script setup lang='ts'>
-import { onMounted, ref, watch, computed } from 'vue';
+import { onMounted, onUnmounted, ref, watch, computed } from 'vue';
+import { Preferences } from '@capacitor/preferences';
 import StandardItemBasemap from '../util/StandardItemBasemap.vue';
 import StandardItemFolder from '../util/StandardItemFolder.vue';
 import PathBreadcrumb from '../util/PathBreadcrumb.vue';
@@ -170,13 +184,14 @@ import type { BasemapList, Basemap } from '../../../types.ts';
 import { openExternalUrl } from '../../../base/capacitor.ts';
 import ProfileConfig from '../../../base/profile.ts';
 import { server, stdurl } from '../../../std.ts';
-import Overlay from '../../../base/overlay.ts';
+import OverlayManager from '../../../base/overlay.ts';
+import type { Subscription } from 'dexie';
 import BasemapEditModal from './Basemaps/EditModal.vue';
 import MenuTemplate from '../util/MenuTemplate.vue';
+import SearchSortFilter from '../util/SearchSortFilter.vue';
 import Share from '../util/Share.vue';
 import {
     TablerNone,
-    TablerInput,
     TablerPager,
     TablerAlert,
     TablerLoading,
@@ -191,19 +206,36 @@ import {
     IconSettings,
     IconBoxMultiple,
     IconDotsVertical,
+    IconLetterCase,
+    IconArrowUp,
+    IconArrowDown,
 } from '@tabler/icons-vue'
 import type { LayerSpecification } from 'maplibre-gl'
 import { useRouter } from 'vue-router';
-import { useMapStore } from '../../../stores/map.ts';
 
-const mapStore = useMapStore();
+const overlayBasemapIds = ref<Set<string>>(new Set());
+const currentBasemapModeIds = ref<Set<string>>(new Set());
+let overlaySubscription: Subscription | undefined;
 
-const overlayBasemapIds = computed<Set<string>>(() => {
-    return new Set(
-        mapStore.overlays
-            .filter((overlay) => overlay.mode === 'overlay' && overlay.mode_id)
-            .map((overlay) => String(overlay.mode_id))
-    );
+onMounted(() => {
+    overlaySubscription = OverlayManager.liveList().subscribe({
+        next: (items) => {
+            overlayBasemapIds.value = new Set(
+                items
+                    .filter((overlay) => overlay.mode === 'overlay' && overlay.mode_id)
+                    .map((overlay) => String(overlay.mode_id))
+            );
+            currentBasemapModeIds.value = new Set(
+                items
+                    .filter((overlay) => overlay.mode === 'basemap' && overlay.mode_id)
+                    .map((overlay) => String(overlay.mode_id))
+            );
+        }
+    });
+});
+
+onUnmounted(() => {
+    overlaySubscription?.unsubscribe();
 });
 
 function basemapOverlayExists(basemap: Basemap): boolean {
@@ -223,6 +255,11 @@ const paging = ref({
     limit: 30,
     page: 0
 });
+
+const sort = ref('A → Z');
+const sortOptions = ['A → Z', 'Z → A'];
+const sortTypeIcon = computed(() => IconLetterCase);
+const sortDirectionIcon = computed(() => sort.value === 'A → Z' ? IconArrowUp : IconArrowDown);
 
 const list = ref<BasemapList>({
     total: 0,
@@ -244,31 +281,40 @@ watch(paging.value, async () => {
     await fetchList();
 });
 
+watch(sort, async () => {
+    await fetchList();
+});
+
 async function setBasemap(basemap: Basemap) {
-    const hasBasemap = mapStore.overlays.some((overlay) => {
+    const overlays = OverlayManager.loaded;
+    const hasBasemap = overlays.some((overlay) => {
         return overlay.mode === 'basemap';
     });
 
     if (hasBasemap) {
-        for (let i = 0; i < mapStore.overlays.length; i++) {
-            const overlay = mapStore.overlays[i];
+        for (let i = 0; i < overlays.length; i++) {
+            const overlay = overlays[i];
 
             if (overlay.mode === 'basemap') {
-                if (mapStore.overlays[i + 1]) {
+                if (overlays[i + 1]) {
                     await overlay.replace({
                         name: basemap.name,
                         type: basemap.type,
+                        opacity: 1,
+                        visible: true,
                         url: `/api/basemap/${basemap.id}/tiles`,
                         mode: 'basemap',
                         mode_id: String(basemap.id),
                         styles: basemap.styles as Array<LayerSpecification>
                     }, {
-                        before: mapStore.overlays[i + 1].styles[0].id
+                        before: overlays[i + 1].styles[0].id
                     });
                 } else {
                     await overlay.replace({
                         name: basemap.name,
                         type: basemap.type,
+                        opacity: 1,
+                        visible: true,
                         url: `/api/basemap/${basemap.id}/tiles`,
                         mode: 'basemap',
                         mode_id: String(basemap.id),
@@ -279,23 +325,26 @@ async function setBasemap(basemap: Basemap) {
             }
         }
     } else {
-        const before = String(mapStore.overlays[0].styles[0].id);
+        const before = String(overlays[0].styles[0].id);
 
-        mapStore.overlays.unshift(await Overlay.create({
+        await OverlayManager.createLoaded({
             name: basemap.name,
             pos: -1,
             type: basemap.type,
+            opacity: 1,
+            visible: true,
             frequency: basemap.frequency,
             url: `/api/basemap/${basemap.id}/tiles`,
             mode: 'basemap',
             mode_id: String(basemap.id),
             styles: basemap.styles
-        }, { before }));
+        }, { before, position: 'prepend' });
     }
 }
 
-function download(basemap: Basemap) {
-    void openExternalUrl(stdurl(`/api/basemap/${basemap.id}?format=xml&download=true&token=${localStorage.token}`));
+async function download(basemap: Basemap) {
+    const { value: token } = await Preferences.get({ key: 'token' });
+    void openExternalUrl(stdurl(`/api/basemap/${basemap.id}?format=xml&download=true${token ? `&token=${encodeURIComponent(token)}` : ''}`));
 }
 
 function setCollection(name: string) {
@@ -304,16 +353,12 @@ function setCollection(name: string) {
 }
 
 function isCurrentBasemap(basemapId: number): boolean {
-    const currentBasemap = mapStore.overlays.find(overlay =>
-        overlay.mode === 'basemap' && overlay.mode_id === String(basemapId)
-    );
-    return !!currentBasemap;
+    return currentBasemapModeIds.value.has(String(basemapId));
 }
 
 async function addOverlay(basemap: Basemap) {
     try {
-        // Insert in 1st position after basemap where mapStore.overlays[0] is the basemap
-        mapStore.addOverlay(await Overlay.create({
+        await OverlayManager.createLoaded({
             url: String(stdurl(`/api/basemap/${basemap.id}/tiles`)),
             name: basemap.name,
             mode: 'overlay',
@@ -321,9 +366,7 @@ async function addOverlay(basemap: Basemap) {
             frequency: basemap.frequency,
             type: basemap.type,
             styles: basemap.styles
-        }, {
-            before: mapStore.getOverlayBeforeId()
-        }));
+        });
 
         loading.value = false;
 
@@ -348,7 +391,7 @@ async function fetchList() {
                     filter: paging.value.filter,
                     collection: paging.value.collection ? paging.value.collection : undefined,
                     limit: paging.value.limit,
-                    order: 'asc',
+                    order: sort.value === 'A → Z' ? 'asc' : 'desc',
                     sort: 'name',
                     page: paging.value.page,
                     type: ['vector', 'raster']

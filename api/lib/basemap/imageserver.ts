@@ -1,6 +1,6 @@
 import type { Response } from 'express';
 import Err from '@openaddresses/batch-error';
-import typedFetch from '../fetch.js';
+import { fetch as typedFetch } from '@tak-ps/node-safeurl';
 import { BasemapProtocol, TileOpts } from '../interface-basemap.js';
 
 /**
@@ -50,7 +50,7 @@ export default class ImageServerBasemap extends BasemapProtocol {
     protected async _tile(
         z: number, x: number, y: number,
         res: Response,
-        opts: Required<TileOpts>
+        opts: Required<TileOpts>,
     ): Promise<void> {
         try {
             const url = ImageServerBasemap.esriRasterTileURL(this.basemap!.url, z, x, y);
@@ -64,7 +64,7 @@ export default class ImageServerBasemap extends BasemapProtocol {
             res.writeHead(200, {
                 ...opts.headers,
                 'Content-Type': 'image/jpeg',
-                'Content-Length': Buffer.byteLength(tile)
+                'Content-Length': Buffer.byteLength(tile),
             });
 
             res.write(tile);

@@ -6,6 +6,7 @@ export interface RetentionTaskConfig {
     'retention::connection-feature::enabled'?: boolean;
     'retention::chat::enabled'?: boolean;
     'retention::import::enabled'?: boolean;
+    'retention::feature::enabled'?: boolean;
 }
 
 export interface RetentionTaskResult {
@@ -39,11 +40,11 @@ const tasks: RetentionTask[] = [{
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${jwt.sign({ access: 'admin', email: 'system' }, signingSecret, { expiresIn: '5m' })}`,
+                'Authorization': `Bearer ${jwt.sign({ access: 'admin', email: 'system' }, signingSecret, { expiresIn: '5m' })}`,
             },
             body: JSON.stringify({
-                action: 'connection-feature'
-            })
+                action: 'connection-feature',
+            }),
         });
 
         if (!res.ok) {
@@ -51,7 +52,7 @@ const tasks: RetentionTask[] = [{
         }
 
         return await res.json() as RetentionTaskResult;
-    }
+    },
 }, {
     name: 'chat',
     enabled: (config: RetentionTaskConfig): boolean => {
@@ -69,11 +70,11 @@ const tasks: RetentionTask[] = [{
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${jwt.sign({ access: 'admin', email: 'system' }, signingSecret, { expiresIn: '5m' })}`,
+                'Authorization': `Bearer ${jwt.sign({ access: 'admin', email: 'system' }, signingSecret, { expiresIn: '5m' })}`,
             },
             body: JSON.stringify({
-                action: 'chat'
-            })
+                action: 'chat',
+            }),
         });
 
         if (!res.ok) {
@@ -81,7 +82,7 @@ const tasks: RetentionTask[] = [{
         }
 
         return await res.json() as RetentionTaskResult;
-    }
+    },
 }, {
     name: 'import',
     enabled: (config: RetentionTaskConfig): boolean => {
@@ -99,11 +100,11 @@ const tasks: RetentionTask[] = [{
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${jwt.sign({ access: 'admin', email: 'system' }, signingSecret, { expiresIn: '5m' })}`,
+                'Authorization': `Bearer ${jwt.sign({ access: 'admin', email: 'system' }, signingSecret, { expiresIn: '5m' })}`,
             },
             body: JSON.stringify({
-                action: 'import'
-            })
+                action: 'import',
+            }),
         });
 
         if (!res.ok) {
@@ -111,7 +112,37 @@ const tasks: RetentionTask[] = [{
         }
 
         return await res.json() as RetentionTaskResult;
-    }
+    },
+}, {
+    name: 'feature',
+    enabled: (config: RetentionTaskConfig): boolean => {
+        return config['retention::feature::enabled'] === true;
+    },
+    run: async (): Promise<RetentionTaskResult> => {
+        const apiUrl = process.env.API_URL;
+        const signingSecret = process.env.SigningSecret;
+
+        if (!apiUrl || !signingSecret) {
+            throw new Error('API_URL or SigningSecret not set');
+        }
+
+        const res = await fetch(new URL('/api/retention', apiUrl), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${jwt.sign({ access: 'admin', email: 'system' }, signingSecret, { expiresIn: '5m' })}`,
+            },
+            body: JSON.stringify({
+                action: 'feature',
+            }),
+        });
+
+        if (!res.ok) {
+            throw new Error(`Failed to execute feature retention: HTTP ${res.status}`);
+        }
+
+        return await res.json() as RetentionTaskResult;
+    },
 }];
 
 async function runOnce(): Promise<void> {
@@ -124,12 +155,12 @@ async function runOnce(): Promise<void> {
     }
 
     const url = new URL('/api/config', apiUrl);
-    url.searchParams.set('keys', 'retention::enabled,retention::connection-feature::enabled,retention::chat::enabled,retention::import::enabled');
+    url.searchParams.set('keys', 'retention::enabled,retention::connection-feature::enabled,retention::chat::enabled,retention::import::enabled,retention::feature::enabled');
 
     const res = await fetch(url, {
         headers: {
             Authorization: `Bearer ${jwt.sign({ access: 'admin', email: 'system' }, signingSecret, { expiresIn: '5m' })}`,
-        }
+        },
     });
 
     if (!res.ok) throw new Error(`Failed to fetch config: HTTP ${res.status}`);
@@ -177,8 +208,14 @@ if (process.argv.includes('--run-once')) {
         }
     }, { timezone: process.env.TZ || 'UTC' });
 
-    process.on('SIGTERM', () => { task.stop(); process.exit(0); });
-    process.on('SIGINT', () => { task.stop(); process.exit(0); });
+    process.on('SIGTERM', () => {
+        task.stop();
+        process.exit(0);
+    });
+    process.on('SIGINT', () => {
+        task.stop();
+        process.exit(0);
+    });
 
     console.log(`ok - retention scheduler started: ${schedule}`);
 }

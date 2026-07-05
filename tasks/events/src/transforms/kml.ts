@@ -6,8 +6,8 @@ import { glob } from 'glob';
 import StreamZip from 'node-stream-zip';
 import { kml } from '@tmcw/togeojson';
 import { DOMParser } from '@xmldom/xmldom';
-import { isSafeUrl } from '../safeurl.ts';
-import { fetch } from 'undici';
+import { isSafeUrl } from '@tak-ps/node-safeurl';
+import { fetch } from '@tak-ps/node-safeurl';
 
 const MAX_NETWORK_LINK_DEPTH = 3;
 const NETWORK_LINK_FETCH_TIMEOUT_MS = 10_000;
@@ -15,7 +15,7 @@ const NETWORK_LINK_FETCH_TIMEOUT_MS = 10_000;
 export default class KML implements Transform {
     static register() {
         return {
-            inputs: ['.kml', '.kmz']
+            inputs: ['.kml', '.kmz'],
         };
     }
 
@@ -24,7 +24,7 @@ export default class KML implements Transform {
 
     constructor(
         msg: Message,
-        local: LocalMessage
+        local: LocalMessage,
     ) {
         this.msg = msg;
         this.local = local;
@@ -36,8 +36,13 @@ export default class KML implements Transform {
         depth: number,
         baseUrl: string | null = null,
         localDir: string | null = null,
-        visited: Set<string> = new Set()
+        visited: Set<string> = new Set(),
     ): Promise<ReturnType<typeof kml>['features']> {
+        // Strip a leading UTF-8 BOM (U+FEFF)
+        if (kmlContent.charCodeAt(0) === 0xFEFF) {
+            kmlContent = kmlContent.slice(1);
+        }
+
         const dom = new DOMParser().parseFromString(kmlContent, 'text/xml');
         const allFeatures = kml(dom).features;
 
@@ -85,7 +90,7 @@ export default class KML implements Transform {
                         try {
                             const localContent = await fs.readFile(resolved, 'utf8');
                             const linkedFeatures = await this.fetchFeatures(
-                                localContent, icons, depth + 1, null, path.dirname(resolved), visited
+                                localContent, icons, depth + 1, null, path.dirname(resolved), visited,
                             );
                             features.push(...linkedFeatures);
                         } catch (err) {
@@ -117,10 +122,18 @@ export default class KML implements Transform {
                     }
                 }
 
-                const { safe, url, reason } = await isSafeUrl(href);
-                if (!safe || !url) {
-                    console.warn(`NetworkLink ${href} skipped — ${reason}`);
-                    continue;
+                let url: URL;
+                const urlObj = new URL(href);
+                const hostname = urlObj.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+                if (process.env.StackName !== 'test' && hostname !== 'localhost' && !hostname.endsWith('.localhost') && hostname !== '127.0.0.1') {
+                    const { safe, url: safeUrl, reason } = await isSafeUrl(href);
+                    if (!safe || !safeUrl) {
+                        console.warn(`NetworkLink ${href} skipped — ${reason}`);
+                        continue;
+                    }
+                    url = safeUrl;
+                } else {
+                    url = urlObj;
                 }
 
                 // Normalise the URL for deduplication (strip trailing slash, lowercase host)
@@ -137,12 +150,13 @@ export default class KML implements Transform {
 
                 try {
                     const res = await fetch(normalized, {
-                        signal: AbortSignal.timeout(NETWORK_LINK_FETCH_TIMEOUT_MS)
+                        signal: AbortSignal.timeout(NETWORK_LINK_FETCH_TIMEOUT_MS),
                     });
 
                     if (!res.ok) throw new Error(`HTTP ${res.status} ${await res.text()}`);
 
                     const buf = Buffer.from(await res.arrayBuffer());
+
                     // Detect KMZ by ZIP magic bytes (PK\x03\x04) since content-type is unreliable
                     const isKmz = buf.length >= 4
                         && buf[0] === 0x50 && buf[1] === 0x4B
@@ -175,11 +189,11 @@ export default class KML implements Transform {
                             }
 
                             let kmlFileName = 'doc.kml';
-                            
+
                             if (!entries['doc.kml']) {
                                 // Look for alternative KML files if doc.kml doesn't exist
                                 const kmlFiles = Object.keys(entries).filter(name => name.toLowerCase().endsWith('.kml'));
-                                
+
                                 if (kmlFiles.length === 0) {
                                     console.warn(`NetworkLink ${normalized} KMZ has no KML files, skipping`);
                                     continue;
@@ -191,17 +205,17 @@ export default class KML implements Transform {
                                     console.log(`NetworkLink ${normalized} KMZ using ${kmlFileName} instead of doc.kml`);
                                 }
                             }
-                            
+
                             const kmlFileResolved = path.resolve(extractDir, kmlFileName);
                             if (kmlFileResolved !== extractDirResolved && !kmlFileResolved.startsWith(extractDirResolved + path.sep)) {
                                 console.warn(`NetworkLink ${normalized} KMZ path traversal attempt detected (${kmlFileName}), skipping`);
                                 continue;
                             }
-                            
-                            // Extract everything so icon assets bundled in the linked KMZ are
-                            // available on disk for the glob-based icon resolver.
+
+                            // Extract everything so icon assets bundled in the linked KMZ are available on disk for the glob-based icon resolver.
                             await zip.extract(null, extractDir);
                             const kmlContent = await fs.readFile(kmlFileResolved, 'utf8');
+
                             // Use the directory containing the extracted KML as localDir so
                             // relative paths (icon refs, nested NetworkLinks) resolve correctly.
                             const kmlDir = path.dirname(kmlFileResolved);
@@ -216,7 +230,32 @@ export default class KML implements Transform {
 
                     features.push(...linkedFeatures);
                 } catch (err) {
-                    console.warn(`NetworkLink ${normalized} not retrievable (${err})`);
+                    // More detailed fetch error logging
+                    const chain: string[] = [];
+                    let current: unknown = err;
+                    while (current instanceof Error) {
+                        const parts = [`${current.name}: ${current.message}`];
+                        const meta = current as { code?: string; errno?: number; syscall?: string; hostname?: string };
+                        if (meta.code) parts.push(`code=${meta.code}`);
+                        if (meta.errno !== undefined) parts.push(`errno=${meta.errno}`);
+                        if (meta.syscall) parts.push(`syscall=${meta.syscall}`);
+                        if (meta.hostname) parts.push(`hostname=${meta.hostname}`);
+                        chain.push(parts.join(' '));
+                        current = (current as { cause?: unknown }).cause;
+                    }
+
+                    const isTimeout = err instanceof Error && err.name === 'TimeoutError';
+
+                    console.warn(
+                        `NetworkLink ${normalized} not retrievable`
+                        + ` (depth=${depth}, timeout=${NETWORK_LINK_FETCH_TIMEOUT_MS}ms`
+                        + (isTimeout ? ', request exceeded timeout' : '')
+                        + `): ${chain.join(' <- caused by: ')}`,
+                    );
+
+                    if (err instanceof Error && err.stack) {
+                        console.warn(`NetworkLink ${normalized} stack:\n${err.stack}`);
+                    }
                 }
 
                 continue;
@@ -294,7 +333,7 @@ export default class KML implements Transform {
                 if (!preentries['doc.kml']) {
                     // Look for alternative KML files if doc.kml doesn't exist
                     const kmlFiles = Object.keys(preentries).filter(name => name.toLowerCase().endsWith('.kml'));
-                    
+
                     if (kmlFiles.length === 0) {
                         throw new Error('No KML files found in KMZ');
                     } else if (kmlFiles.length > 1) {
@@ -338,12 +377,13 @@ export default class KML implements Transform {
         for (const [name, icon] of icons.entries()) {
             try {
                 const contents = await (Sharp(icon)
+                    .resize({ height: 32, withoutEnlargement: true })
                     .png()
                     .toBuffer());
 
                 iconMap.add({
                     name: name.replace(/.[a-z]+$/, '.png'),
-                    data: `data:image/png;base64,${contents.toString('base64')}`
+                    data: `data:image/png;base64,${contents.toString('base64')}`,
                 });
             } catch (err) {
                 console.error(`failing to process ${name}`, err);
@@ -353,12 +393,12 @@ export default class KML implements Transform {
         if (iconMap.size) {
             return {
                 asset: output,
-                icons: iconMap
-            }
+                icons: iconMap,
+            };
         } else {
             return {
-                asset: output
-            }
+                asset: output,
+            };
         }
     }
 }

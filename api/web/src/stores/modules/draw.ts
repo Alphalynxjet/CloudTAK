@@ -1,4 +1,5 @@
 import router from '../../router.ts';
+import { Preferences } from '@capacitor/preferences';
 import * as terraDraw from 'terra-draw';
 import * as tilecover from '@mapbox/tile-cover';
 import {
@@ -11,7 +12,7 @@ import {
 } from 'terra-draw-route-snap-mode'
 
 import { v4 as randomUUID } from 'uuid';
-import mapgl from 'maplibre-gl'
+import * as mapgl from 'maplibre-gl'
 import pointOnFeature from '@turf/point-on-feature';
 import { coordEach } from '@turf/meta';
 import { distance } from '@turf/distance';
@@ -23,6 +24,7 @@ import { createCircleEllipseShape } from '../../base/cot/ellipse.ts';
 import { std, stdurl, server } from '../../std.ts';
 import type { Feature, FeatureCollection } from '../../types.ts';
 import type { paths } from '@cloudtak/api-types';
+import OverlayManager from '../../base/overlay.ts';
 
 type AugmentedBasemapResponse = paths['/api/basemap']['get']['responses']['200']['content']['application/json']['items'][0];
 import type { Polygon, Position, LineString, Feature as GeoJSONFeature, FeatureCollection as GeoJSONFeatureCollection } from 'geojson';
@@ -316,7 +318,7 @@ export default class DrawTool {
                             this.mapStore.selected.set(cot.id, cot);
                         }
                     } else {
-                        const ov = this.mapStore.getOverlayByName(this.lasso.overlay);
+                        const ov = OverlayManager.loadedByName(this.lasso.overlay);
                         if (!ov) throw new Error('Could not find overlay');
 
                         this.lasso.loading = true;
@@ -404,8 +406,6 @@ export default class DrawTool {
 
                         if (this.point.type === 'u-d-p') {
                             feat.properties["marker-color"] = '#00FF00';
-                        } else {
-                            feat.properties["marker-color"] = '#FFFFFF';
                         }
                     }
 
@@ -471,32 +471,35 @@ export default class DrawTool {
     }
 
     async populateSnappingLayers(): Promise<void> {
-        if (this.mapStore.hasSnapping) {
-            const { data } = await server.GET('/api/basemap', {
-                params: {
-                    query: {
-                        limit: 100,
-                        page: 0,
-                        order: 'asc',
-                        sort: 'name',
-                        filter: '',
-                        snapping: true,
-                        hidden: 'all',
-                        overlay: true
-                    }
+        const { data } = await server.GET('/api/basemap', {
+            params: {
+                query: {
+                    limit: 100,
+                    page: 0,
+                    order: 'asc',
+                    sort: 'name',
+                    filter: '',
+                    snapping: true,
+                    hidden: 'all',
+                    overlay: true
                 }
-            });
-
-            if (data && data.items) {
-                this.route.definitions.clear();
-                for (const item of data.items) {
-                    item.minzoom = item.minzoom ? Number(item.minzoom) : 0;
-                    item.maxzoom = item.maxzoom ? Number(item.maxzoom) : 22;
-                    this.route.definitions.set(item.name, item);
-                }
-
-                this.snappingOptions = ['No Snapping'].concat(data.items.map((b) => b.name));
             }
+        });
+
+        this.route.definitions.clear();
+
+        if (data && data.items.length) {
+            for (const item of data.items) {
+                item.minzoom = item.minzoom ? Number(item.minzoom) : 0;
+                item.maxzoom = item.maxzoom ? Number(item.maxzoom) : 22;
+                this.route.definitions.set(item.name, item);
+            }
+
+            this.snappingOptions = ['No Snapping'].concat(data.items.map((b) => b.name));
+            this.mapStore.hasSnapping = true;
+        } else {
+            this.snappingOptions = ['No Snapping'];
+            this.mapStore.hasSnapping = false;
         }
     }
 
@@ -546,7 +549,8 @@ export default class DrawTool {
                  finalUrl = finalUrl.replace(/\.[a-z0-9]+$/i, '') + '/features';
 
                  const url = new URL(finalUrl);
-                 url.searchParams.set('token', localStorage.token);
+                 const { value: token } = await Preferences.get({ key: 'token' });
+                 if (token) url.searchParams.set('token', token);
                  url.searchParams.set('type', 'LineString');
                  url.searchParams.set('multi', 'false');
 

@@ -3,7 +3,7 @@ import { GeoJSONVT } from '@maplibre/geojson-vt';
 import vtpbf from 'vt-pbf';
 import type { Response } from 'express';
 import Err from '@openaddresses/batch-error';
-import typedFetch from '../fetch.js';
+import { fetch as typedFetch } from '@tak-ps/node-safeurl';
 import { Feature } from '@tak-ps/node-cot';
 import { Static } from '@sinclair/typebox';
 import { Basemap_FeatureAction } from '../enums.js';
@@ -68,13 +68,13 @@ export default class FeatureServerBasemap extends BasemapProtocol {
             xmin: bbox[0],
             ymin: bbox[1],
             xmax: bbox[2],
-            ymax: bbox[3]
+            ymax: bbox[3],
         };
 
         url.searchParams.set('quantizationParameters', JSON.stringify({
             extent,
             tolerance: 0.001,
-            mode: 'view'
+            mode: 'view',
         }));
 
         url.searchParams.set('geometry', JSON.stringify(extent));
@@ -86,8 +86,8 @@ export default class FeatureServerBasemap extends BasemapProtocol {
         return {
             feature: [
                 Basemap_FeatureAction.FETCH,
-                Basemap_FeatureAction.QUERY
-            ]
+                Basemap_FeatureAction.QUERY,
+            ],
         };
     }
 
@@ -97,13 +97,13 @@ export default class FeatureServerBasemap extends BasemapProtocol {
      * @param polygon - GeoJSON Polygon to query within
      */
     async featureQuery(
-        polygon: Static<typeof Feature.Polygon>
+        polygon: Static<typeof Feature.Polygon>,
     ): Promise<Static<typeof MultiGeoJSONFeatureCollection>> {
         const url = this.basemap!.url;
 
         const esriPolygon: Static<typeof EsriPolygon> = {
             rings: polygon.coordinates,
-            spatialReference: { wkid: 4326, latestWkid: 4326 }
+            spatialReference: { wkid: 4326, latestWkid: 4326 },
         };
 
         const urlBuilder = new URL(url + '/query');
@@ -117,7 +117,7 @@ export default class FeatureServerBasemap extends BasemapProtocol {
 
         const fc = await (await fetch(urlBuilder, {
             method: 'POST',
-            body: formData
+            body: formData,
         })).json() as Static<typeof MultiGeoJSONFeatureCollection>;
 
         return fc;
@@ -129,7 +129,7 @@ export default class FeatureServerBasemap extends BasemapProtocol {
      * @param id - Feature objectId
      */
     async featureFetch(
-        id: string
+        id: string,
     ): Promise<Static<typeof MultiGeoJSONFeature>> {
         const urlBuilder = new URL(this.basemap!.url + '/query');
         urlBuilder.searchParams.set('f', 'geojson');
@@ -153,7 +153,7 @@ export default class FeatureServerBasemap extends BasemapProtocol {
     protected async _tile(
         z: number, x: number, y: number,
         res: Response,
-        opts: Required<TileOpts>
+        opts: Required<TileOpts>,
     ): Promise<void> {
         try {
             const url = FeatureServerBasemap.esriVectorTileURL(this.basemap!.url, z, x, y);
@@ -167,7 +167,7 @@ export default class FeatureServerBasemap extends BasemapProtocol {
             if (!fc.features.length) {
                 res.status(404).json({
                     status: 404,
-                    message: 'No Features Found'
+                    message: 'No Features Found',
                 });
                 return;
             }
@@ -177,7 +177,7 @@ export default class FeatureServerBasemap extends BasemapProtocol {
                 features: fc.features.map((feat) => {
                     feat.id = Number(feat.id);
                     return feat;
-                })
+                }),
             };
 
             const tileIndex = new GeoJSONVT(geojson, {
@@ -191,12 +191,12 @@ export default class FeatureServerBasemap extends BasemapProtocol {
 
             if (!tileFeatures) throw new Err(404, null, 'No Features Found in Tile');
 
-            const tile = vtpbf.fromGeojsonVt({ 'out': tileFeatures });
+            const tile = vtpbf.fromGeojsonVt({ out: tileFeatures });
 
             res.writeHead(200, {
                 ...opts.headers,
                 'Content-Type': 'application/vnd.mapbox-vector-tile',
-                'Content-Length': Buffer.byteLength(tile)
+                'Content-Length': Buffer.byteLength(tile),
             });
 
             res.write(tile);

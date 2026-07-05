@@ -1,6 +1,6 @@
 import Err from '@openaddresses/batch-error';
-import { Static } from '@sinclair/typebox'
-import {InferSelectModel} from 'drizzle-orm';
+import { Static } from '@sinclair/typebox';
+import { InferSelectModel } from 'drizzle-orm';
 import { Connection } from '../schema.js';
 import Alarm from '../aws/alarm.js';
 import type { InferInsertModel } from 'drizzle-orm';
@@ -22,7 +22,7 @@ export default class LayerControl {
 
     async from(
         connection: InferSelectModel<typeof Connection> | number | null,
-        layerid: number
+        layerid: number,
     ): Promise<Static<typeof LayerResponse>> {
         if (typeof connection === 'number') {
             connection = await this.config.models.Connection.from(connection);
@@ -74,10 +74,10 @@ export default class LayerControl {
     async generate(
         input: InferInsertModel<typeof Layer>,
         opts?: {
-            alarms?: boolean,
-            incoming?: Omit<InferInsertModel<typeof LayerIncoming>, "layer">,
-            outgoing?: Omit<InferInsertModel<typeof LayerOutgoing>, "layer">
-        }
+            alarms?: boolean;
+            incoming?: Omit<InferInsertModel<typeof LayerIncoming>, 'layer'>;
+            outgoing?: Omit<InferInsertModel<typeof LayerOutgoing>, 'layer'>;
+        },
     ): Promise<Static<typeof LayerResponse>> {
         const base = await this.config.models.Layer.generate(input);
 
@@ -94,7 +94,6 @@ export default class LayerControl {
                 layer: base.id,
             });
         }
-
 
         if (opts && opts.outgoing) {
             await this.config.models.LayerOutgoing.generate({
@@ -123,7 +122,7 @@ export default class LayerControl {
 
         return {
             status,
-            ...layer
-        }
+            ...layer,
+        };
     }
 }

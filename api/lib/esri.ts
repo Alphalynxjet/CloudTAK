@@ -1,27 +1,38 @@
 import Err from '@openaddresses/batch-error';
 import EsriDump from 'esri-dump';
 import { Static, Type } from '@sinclair/typebox';
-import { OptionalTileJSON } from './types.js';
-import { Basemap_Format, Basemap_Type, Basemap_Scheme  } from './enums.js';
-import { fetch } from '@tak-ps/etl';
+import { TileJSON } from './types.js';
+import { Basemap_Format, Basemap_Type, Basemap_Scheme } from './enums.js';
+import { fetch } from '@tak-ps/node-safeurl';
 import { ESRILayerList } from './esri/types.js';
 import {
     DefaultLayerPoints,
     DefaultLayerLines,
-    DefaultLayerPolys
-} from './esri/layer.js'
+    DefaultLayerPolys,
+} from './esri/layer.js';
+
+type EsriErrorResponse = { message: string; details?: unknown };
+
+function isEsriError(json: unknown): json is { error: EsriErrorResponse } {
+    return (
+        typeof json === 'object' && json !== null
+        && 'error' in json
+        && typeof (json as Record<string, unknown>).error === 'object'
+        && (json as Record<string, unknown>).error !== null
+    );
+}
 
 export enum EsriType {
-    AGOL = 'AGOL',      // ArcGIS Online Portal
-    PORTAL = 'PORTAL',  // Enterprise Portal
-    SERVER = 'SERVER'   // Stand-Alone Server
+    AGOL = 'AGOL', // ArcGIS Online Portal
+    PORTAL = 'PORTAL', // Enterprise Portal
+    SERVER = 'SERVER', // Stand-Alone Server
 }
 
 export enum EsriLayerType {
     MAP = 'MapServer',
     FEATURE = 'FeatureServer',
     IMAGE = 'ImageServer',
-    UNKNOWN = 'Unknown'
+    UNKNOWN = 'Unknown',
 }
 
 export interface EsriToken {
@@ -39,7 +50,7 @@ export interface EsriAuth {
 
 export const ESRIPortal = Type.Object({
     id: Type.String(),
-    name: Type.String()
+    name: Type.String(),
     // There are more fields, but we only care about these for now
 });
 
@@ -67,7 +78,6 @@ export class EsriBase {
         } else { // EsriType === SERVER
             this.postfix = base.pathname.replace(/.*\/rest/, '');
             base.pathname = base.pathname.replace(/\/rest.*/, '/rest');
-
         }
 
         this.base = base;
@@ -75,7 +85,7 @@ export class EsriBase {
 
     static async from(
         base: string | URL,
-        auth?: EsriAuth
+        auth?: EsriAuth,
     ): Promise<EsriBase> {
         const esri = new EsriBase(base, auth);
         await esri.fetchVersion();
@@ -101,17 +111,17 @@ export class EsriBase {
         if (this.type === EsriType.SERVER) {
             url.pathname = url.pathname.replace('/rest', '/tokens/generateToken');
         } else {
-            url.pathname = url.pathname + '/generateToken'
+            url.pathname = url.pathname + '/generateToken';
         }
 
         try {
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: String(body)
+                body: String(body),
             });
 
-            let json = await res.json() as Record<string, unknown>
+            let json = await res.json() as Record<string, unknown>;
 
             if (json.error) {
                 // @ts-expect-error Need stronger types
@@ -125,12 +135,12 @@ export class EsriBase {
                 token: string;
                 expires: number;
                 referer: string;
-            }
+            };
 
             this.token = {
                 token: String(json.token),
                 expires: parseInt(String(json.expires)),
-                referer: this.auth.referer
+                referer: this.auth.referer,
             };
 
             return this.token;
@@ -166,21 +176,19 @@ export class EsriBase {
             const res = await fetch(url);
 
             const json = await res.typed(Type.Object({
-                currentVersion: Type.Optional(Type.String()),
+                currentVersion: Type.Optional(Type.Union([Type.String(), Type.Number()])),
                 error: Type.Optional(Type.Object({
-                    message: Type.String()
-                }))
-            }), {
-                verbose: true
-            })
+                    message: Type.String(),
+                })),
+            }), { verbose: true });
 
             if (json.error) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
             if (!json.currentVersion) throw new Err(400, null, 'Could not determine ESRI Server Version, is this an ESRI Server?');
 
             if (this.type === EsriType.PORTAL || this.type === EsriType.SERVER) {
-                const major = parseInt(String(json.currentVersion).split('.')[0])
+                const major = parseInt(String(json.currentVersion).split('.')[0]);
                 if (isNaN(major)) throw new Err(400, null, `Could not parse ESRI Server Version (${json.currentVersion}) - non-integer - this version may not be supported`);
-                if (major < 8) throw new Err(400, null, `ESRI Server version (${json.currentVersion}) is too old - Update to at least version 8.x`)
+                if (major < 8) throw new Err(400, null, `ESRI Server version (${json.currentVersion}) is too old - Update to at least version 8.x`);
             }
 
             // ArcGIS Online (AGOL) uses a <year>.<month?> format - assume it's always at the bleeding edge
@@ -203,7 +211,7 @@ export class EsriBase {
                     } catch {
                         throw err;
                     }
-            }
+                }
 
                 throw err;
             }
@@ -256,9 +264,9 @@ class EsriProxyPortal {
     }
 
     async getContent(opts: {
-        title?: string
+        title?: string;
     }): Promise<{
-        username: string
+        username: string;
     }> {
         if (opts.title) opts.title = `(${opts.title.replace(/"/g, '')})`;
         else opts.title = '';
@@ -276,19 +284,19 @@ class EsriProxyPortal {
 
         const query = [];
         if (opts.title) query.push(opts.title);
-        query.push(`orgid:${portal.id}`)
+        query.push(`orgid:${portal.id}`);
         query.push('type:("Feature Service")');
         url.searchParams.append('q', query.join(' '));
 
         const headers = this.esri.standardHeaderObject();
         const res = await fetch(url, {
             method: 'GET',
-            headers
+            headers,
         });
 
-        const json = await res.json()
+        const json = await res.json();
 
-        if (json.error) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
+        if (isEsriError(json)) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
 
         return json as { username: string };
     }
@@ -300,21 +308,19 @@ class EsriProxyPortal {
 
             const headers = this.esri.standardHeaderObject();
             const res = await fetch(url, {
-                headers
+                headers,
             });
 
             if (!res.ok) {
                 const json = await res.json();
-                if (json.error) {
+                if (isEsriError(json)) {
                     throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
                 } else {
                     throw new Err(400, null, `ESRI Server returned HTTP ${res.status} ${res.statusText}`);
                 }
             }
 
-            return await res.typed(ESRIPortal, {
-                verbose: true
-            })
+            return await res.typed(ESRIPortal, { verbose: true });
         } catch (err) {
             if (err instanceof Error && err.name === 'PublicError') throw err;
             throw new Err(400, err instanceof Error ? err : new Error(String(err)), err instanceof Error ? err.message : String(err));
@@ -322,7 +328,7 @@ class EsriProxyPortal {
     }
 
     async getSelf(): Promise<{
-        username: string
+        username: string;
     }> {
         const url = new URL(this.esri.base + `/community/self`);
         url.searchParams.append('f', 'json');
@@ -330,12 +336,12 @@ class EsriProxyPortal {
         const headers = this.esri.standardHeaderObject();
         const res = await fetch(url, {
             method: 'GET',
-            headers
+            headers,
         });
 
-        const json = await res.json()
+        const json = await res.json();
 
-        if (json.error) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
+        if (isEsriError(json)) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
 
         return json as { username: string };
     }
@@ -347,15 +353,15 @@ class EsriProxyPortal {
         const headers = this.esri.standardHeaderObject();
         const res = await fetch(url, {
             method: 'GET',
-            headers
+            headers,
         });
 
-        const json = await res.json()
+        const json = await res.json();
 
-        if (json.error) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
+        if (isEsriError(json)) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
 
         return json as {
-            servers: any[]
+            servers: any[];
         };
     }
 
@@ -373,24 +379,23 @@ class EsriProxyPortal {
             method: 'POST',
             headers: headerObj,
             body: new URLSearchParams({
-                'f': 'json',
-                'createParameters': JSON.stringify({
+                f: 'json',
+                createParameters: JSON.stringify({
                     name,
                     spatialReference: { wkid: 102100, latestWkid: 3857 },
                     allowGeometryUpdates: true,
                 }),
-                'outputType': 'featureService',
-                'description': 'Automatically Created via the TAK ETL Service',
-            })
+                outputType: 'featureService',
+                description: 'Automatically Created via the TAK ETL Service',
+            }),
         });
 
-        const json = await res.json()
+        const json = await res.json();
 
-        if (json.error) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
+        if (isEsriError(json)) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
 
         return json as object;
     }
-
 }
 
 class EsriProxyServer {
@@ -401,7 +406,7 @@ class EsriProxyServer {
     }
 
     async deleteLayer(id: number): Promise<object> {
-        const url = new URL(this.esri.base)
+        const url = new URL(this.esri.base);
         url.pathname = url.pathname.replace(/\/rest/i, '/rest/admin' + this.esri.postfix + '/deleteFromDefinition');
 
         const headerObj = this.esri.standardHeaderObject();
@@ -410,24 +415,24 @@ class EsriProxyServer {
             method: 'POST',
             headers: headerObj,
             body: new URLSearchParams({
-                'f': 'json',
-                'deleteFromDefinition': JSON.stringify({
-                    layers: [{ "id": id }]
-                })
-            })
+                f: 'json',
+                deleteFromDefinition: JSON.stringify({
+                    layers: [{ id: id }],
+                }),
+            }),
         });
 
-        const json = await res.json()
+        const json = await res.json();
 
-        if (json.error) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
+        if (isEsriError(json)) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
 
         return json as object;
     }
 
     async createLayer(layerDefinition: Static<typeof ESRILayerList> = {
-        layers: [DefaultLayerPoints , DefaultLayerLines, DefaultLayerPolys]
+        layers: [DefaultLayerPoints, DefaultLayerLines, DefaultLayerPolys],
     }): Promise<object> {
-        const url = new URL(this.esri.base)
+        const url = new URL(this.esri.base);
         url.pathname = url.pathname.replace(/\/rest/i, '/rest/admin' + this.esri.postfix + '/addToDefinition');
 
         const headerObj = this.esri.standardHeaderObject();
@@ -436,14 +441,14 @@ class EsriProxyServer {
             method: 'POST',
             headers: headerObj,
             body: new URLSearchParams({
-                'f': 'json',
-                'addToDefinition': JSON.stringify(layerDefinition)
-            })
+                f: 'json',
+                addToDefinition: JSON.stringify(layerDefinition),
+            }),
         });
 
-        const json = await res.json()
+        const json = await res.json();
 
-        if (json.error) throw new Err(400, new Error(JSON.stringify(json.error)), 'ESRI Server Error: ' + json.error.message);
+        if (isEsriError(json)) throw new Err(400, new Error(JSON.stringify(json.error)), 'ESRI Server Error: ' + json.error.message);
 
         return json as object;
     }
@@ -456,14 +461,14 @@ class EsriProxyServer {
 
         const res = await fetch(url, {
             method: 'GET',
-            headers
+            headers,
         });
 
-        const json = await res.json() as Record<string, unknown>
+        const json = await res.json() as Record<string, unknown>;
 
-                // @ts-expect-error Need stronger types
+        // @ts-expect-error Need stronger types
         if (json.error) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
-                // @ts-expect-error Need stronger types
+        // @ts-expect-error Need stronger types
         else if (json.status === 'error') throw new Err(400, null, 'ESRI Server Error: ' + json.messages[0]);
 
         return json as object;
@@ -487,30 +492,46 @@ class EsriProxyLayer {
         }
     }
 
-    async tilejson(): Promise<Static<typeof OptionalTileJSON>> {
+    async tilejson(): Promise<Static<typeof TileJSON>> {
         const url = `${this.esri.base}${this.esri.postfix}`;
         const esri = new EsriDump(url, {
-            headers: this.esri.standardHeaderObject()
+            headers: this.esri.standardHeaderObject(),
         });
         const json = await esri.tilejson();
 
+        // esri-dump defaults to 'vector' for MapServer layers that lack both
+        // geometryType and serviceDataType in their metadata. Fetch the raw
+        // ArcGIS layer metadata and check the explicit type field to correctly
+        // identify Raster Layers (e.g. "type": "Raster Layer").
+        let isVector = json.type === 'vector';
+        if (isVector && this.type === EsriLayerType.MAP) {
+            const metaURL = new URL(url);
+            metaURL.searchParams.set('f', 'json');
+            const metaRes = await fetch(metaURL, { headers: this.esri.standardHeaderObject() });
+            const meta = await metaRes.json() as { type?: string };
+            if (meta.type === 'Raster Layer') isVector = false;
+        }
+
         return {
-            name: json.name,
-            type: json.type === 'vector' ? Basemap_Type.VECTOR : Basemap_Type.RASTER,
-            url,
-            bounds: json.bounds,
-            center: json.center,
+            name: json.name || 'Unknown',
+            tilejson: '3.0.0',
+            version: '1.0.0',
+            description: '',
+            type: isVector ? Basemap_Type.VECTOR : Basemap_Type.RASTER,
+            tiles: [url],
+            bounds: json.bounds || [-180, -85.0511, 180, 85.0511],
+            center: Array.isArray(json.center) ? json.center : [0, 0],
             minzoom: json.minzoom,
             maxzoom: json.maxzoom,
-            style: Basemap_Scheme.XYZ,
-            format: json.type === 'vector' ? Basemap_Format.MVT : Basemap_Format.PNG,
-            vector_layers: json.vector_layers
+            scheme: Basemap_Scheme.XYZ,
+            format: isVector ? Basemap_Format.MVT : Basemap_Format.PNG,
+            vector_layers: json.vector_layers,
         };
     }
 
     async sample(where: string): Promise<{
-        count: number,
-        features: object
+        count: number;
+        features: object;
     }> {
         if (![EsriLayerType.FEATURE, EsriLayerType.MAP].includes(this.type)) {
             throw new Err(400, null, 'Can only sample a FeatureServer or MapServer');
@@ -521,11 +542,11 @@ class EsriProxyLayer {
 
         return {
             count: count.count,
-            features
-        }
+            features,
+        };
     }
 
-    async #sampleFeatures(where: string, countOnly=false): Promise<object> {
+    async #sampleFeatures(where: string, countOnly = false): Promise<object> {
         const url = new URL(this.esri.base + this.esri.postfix + '/query');
         url.searchParams.append('f', 'json');
         url.searchParams.append('where', where);
@@ -540,20 +561,19 @@ class EsriProxyLayer {
 
         const res = await fetch(url, {
             method: 'GET',
-            headers: headerObj
+            headers: headerObj,
         });
 
-        const json = await res.json()
+        const json = await res.json();
 
-        if (json.error) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
+        if (isEsriError(json)) throw new Err(400, null, 'ESRI Server Error: ' + json.error.message);
 
         return json as object;
     }
 }
 
-
 export {
     EsriProxyPortal,
     EsriProxyServer,
-    EsriProxyLayer
-}
+    EsriProxyLayer,
+};

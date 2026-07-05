@@ -3,6 +3,7 @@
         :name='subscription ? subscription.meta.name : "Data Sync"'
         :error='error'
         :loading='(!subscription && !error) || loading'
+        :scroll='false'
     >
         <template #buttons>
             <TablerDelete
@@ -29,7 +30,7 @@
                     <div class='col-12'>
                         <div
                             class='cursor-pointer col-12 cloudtak-hover d-flex align-items-center px-2 py-2'
-                            @click='shareToPackageSetup'
+                            @click.stop='shareToPackageSetup'
                         >
                             <IconPackages
                                 :size='32'
@@ -39,7 +40,7 @@
                         </div>
                         <div
                             class='cursor-pointer col-12 cloudtak-hover d-flex align-items-center px-2 py-2'
-                            @click='exportToPackage("geojson")'
+                            @click.stop='exportToPackage("geojson")'
                         >
                             <IconFile
                                 :size='32'
@@ -49,7 +50,7 @@
                         </div>
                         <div
                             class='cursor-pointer col-12 cloudtak-hover d-flex align-items-center px-2 py-2'
-                            @click='exportToPackage("kml")'
+                            @click.stop='exportToPackage("kml")'
                         >
                             <IconFile
                                 :size='32'
@@ -59,7 +60,7 @@
                         </div>
                         <div
                             class='cursor-pointer col-12 cloudtak-hover d-flex align-items-center px-2 py-2'
-                            @click='exportToPackage("zip")'
+                            @click.stop='exportToPackage("zip")'
                         >
                             <IconFileZip
                                 :size='32'
@@ -127,6 +128,7 @@
 
 <script setup lang='ts'>
 import { ref, onMounted } from 'vue';
+import { Preferences } from '@capacitor/preferences';
 import { std } from '../../../std.ts';
 import type { Feature } from '../../../types.ts';
 import type { Component } from 'vue';
@@ -157,6 +159,7 @@ import MenuTemplate from '../util/MenuTemplate.vue';
 import ShareToPackage from '../util/ShareToPackage.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMapStore } from '../../../stores/map.ts';
+import OverlayManager from '../../../base/overlay.ts';
 
 const mapStore = useMapStore();
 const route = useRoute();
@@ -223,8 +226,10 @@ async function deleteMission() {
 
     await subscription.value.delete();
 
-    const overlay = mapStore.getOverlayByMode('mission', String(route.params.mission));
-    if (overlay) await mapStore.removeOverlay(overlay);
+    const overlay = OverlayManager.loadedByMode('mission', String(route.params.mission));
+    if (overlay) {
+        await OverlayManager.deleteLoaded(overlay);
+    }
 
     router.replace('/menu/missions');
 }
@@ -243,9 +248,10 @@ async function fetchMission(reload = false): Promise<void> {
     loading.value = true;
 
     try {
+        const { value: storedToken } = await Preferences.get({ key: 'token' });
         subscription.value = await Subscription.load(String(route.params.mission), {
             reload,
-            token: String(localStorage.token),
+            token: String(storedToken || ''),
             missiontoken: token.value,
         });
 

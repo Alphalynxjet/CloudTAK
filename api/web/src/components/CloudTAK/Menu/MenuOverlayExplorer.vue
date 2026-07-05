@@ -96,7 +96,7 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import type { Basemap, BasemapList } from '../../../types.ts';
 import { server, stdurl } from '../../../std.ts';
@@ -116,10 +116,8 @@ import StandardItem from '../util/StandardItem.vue';
 import StandardItemBasemap from '../util/StandardItemBasemap.vue';
 import StandardItemFolder from '../util/StandardItemFolder.vue';
 import PathBreadcrumb from '../util/PathBreadcrumb.vue';
-import Overlay from '../../../base/overlay.ts';
-import { useMapStore } from '../../../stores/map.ts';
-
-const mapStore = useMapStore();
+import OverlayManager from '../../../base/overlay.ts';
+import type { Subscription } from 'dexie';
 const router = useRouter();
 
 const loading = ref(false);
@@ -137,16 +135,23 @@ const list = ref<BasemapList>({
     items: []
 });
 
-const overlayBasemapIds = computed<Set<string>>(() => {
-    const ids = new Set<string>();
+const overlayBasemapIds = ref<Set<string>>(new Set());
+let overlaySubscription: Subscription | undefined;
 
-    for (const overlay of mapStore.overlays as Array<{ mode?: string; mode_id?: string | number | null }>) {
-        if (overlay.mode === 'overlay' && overlay.mode_id) {
-            ids.add(String(overlay.mode_id));
+onMounted(() => {
+    overlaySubscription = OverlayManager.liveList().subscribe({
+        next: (items) => {
+            overlayBasemapIds.value = new Set(
+                items
+                    .filter((overlay) => overlay.mode === 'overlay' && overlay.mode_id)
+                    .map((overlay) => String(overlay.mode_id))
+            );
         }
-    }
+    });
+});
 
-    return ids;
+onUnmounted(() => {
+    overlaySubscription?.unsubscribe();
 });
 
 watch(
@@ -184,7 +189,7 @@ async function createOverlay(overlay: Basemap) {
     loading.value = true;
 
     try {
-        const createdOverlay = await Overlay.create({
+        await OverlayManager.createLoaded({
             url: String(stdurl(`/api/basemap/${overlay.id}/tiles`)),
             name: overlay.name,
             mode: 'overlay',
@@ -192,11 +197,7 @@ async function createOverlay(overlay: Basemap) {
             frequency: overlay.frequency,
             type: overlay.type,
             styles: overlay.styles
-        }, {
-            before: mapStore.getOverlayBeforeId()
         });
-
-        mapStore.addOverlay(createdOverlay);
 
         router.push('/menu/overlays');
     } finally {

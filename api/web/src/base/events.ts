@@ -1,4 +1,6 @@
 export enum WorkerMessageType {
+    Atlas_Ready = 'cloudtak:atlas:ready',
+
     Map_FlyTo = 'cloudtak:map:flyto',
     Map_FitBounds = 'cloudtak:map:fitbounds',
     Map_Projection = 'cloudtak:map:projection',
@@ -29,6 +31,10 @@ export enum WorkerMessageType {
 
     Feature_Update = 'cloudtak:feature:update',
     Profile_Update = 'cloudtak:profile:update',
+
+    Sync_Start = 'cloudtak:sync:start',
+    Sync_Complete = 'cloudtak:sync:complete',
+    Sync_Update = 'cloudtak:sync:update',
 }
 
 export type WorkerMessage = {

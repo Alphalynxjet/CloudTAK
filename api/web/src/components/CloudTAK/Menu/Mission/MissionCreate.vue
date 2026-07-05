@@ -162,10 +162,11 @@
                     <div class='row g-2'>
                         <div class='col-12'>
                             <label class='px-2 w-100'>Keywords</label>
-                            <TagEntry
+                            <Keywords
                                 placeholder='Enter Keywords'
-                                :model-value='mission.keywords'
-                                @update:model-value='mission.keywords = $event'
+                                :keywords='mission.keywords'
+                                :relevant='[]'
+                                @update:keywords='mission.keywords = $event'
                             />
                         </div>
 
@@ -224,8 +225,8 @@ import {
     IconLayout
 } from '@tabler/icons-vue';
 import GroupSelect from '../../util/GroupSelect.vue';
-import TagEntry from '../../util/TagEntry.vue';
-import Overlay from '../../../../base/overlay.ts';
+import Keywords from '../../util/Keywords.vue';
+import OverlayManager from '../../../../base/overlay.ts';
 import {
     TablerInput,
     TablerEnum,
@@ -365,18 +366,14 @@ async function createMission() {
 
         if (res.error) throw new Error(res.error.message);
 
-        const missionOverlay = await Overlay.create({
+        await OverlayManager.createLoaded({
             name: res.data.name,
-            url: `/mission/${encodeURIComponent(res.data.name)}`,
+            url: `/mission/${encodeURIComponent(res.data.guid)}`,
             type: 'geojson',
             mode: 'mission',
             token: res.data.token,
             mode_id: res.data.guid,
-        }, {
-            before: mapStore.getOverlayBeforeId()
         })
-
-        mapStore.addOverlay(missionOverlay);
 
         await mapStore.loadMission(res.data.guid);
 

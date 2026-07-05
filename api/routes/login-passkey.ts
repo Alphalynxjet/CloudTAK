@@ -3,7 +3,7 @@ import Err from '@openaddresses/batch-error';
 import Auth, { AuthUserAccess } from '../lib/auth.js';
 import Config from '../lib/config.js';
 import Schema from '@openaddresses/batch-schema';
-import { Type } from '@sinclair/typebox'
+import { Type } from '@sinclair/typebox';
 import { UAParser } from 'ua-parser-js';
 import { X509Certificate } from 'crypto';
 import {
@@ -91,8 +91,8 @@ export default async function router(schema: Schema, config: Config) {
                 credential_id: Type.String(),
                 created: Type.String(),
                 last_used: Type.Union([Type.String(), Type.Null()]),
-            }))
-        })
+            })),
+        }),
     }, async (req, res) => {
         try {
             await assertPasskeysEnabled();
@@ -101,13 +101,13 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 total: passkeys.length,
-                items: passkeys.map((p) => ({
+                items: passkeys.map(p => ({
                     id: p.id,
                     name: p.name,
                     credential_id: p.credential_id,
                     created: p.created,
                     last_used: p.last_used,
-                }))
+                })),
             });
         } catch (err) {
             Err.respond(err, res);
@@ -147,7 +147,7 @@ export default async function router(schema: Schema, config: Config) {
             })),
             attestation: Type.Optional(Type.String()),
             extensions: Type.Optional(Type.Unknown()),
-        })
+        }),
     }, async (req, res) => {
         try {
             await assertPasskeysEnabled();
@@ -161,7 +161,7 @@ export default async function router(schema: Schema, config: Config) {
                 rpID,
                 userName: user.email,
                 attestationType: 'none',
-                excludeCredentials: existingPasskeys.map((p) => ({
+                excludeCredentials: existingPasskeys.map(p => ({
                     id: p.credential_id,
                     transports: (p.transports || []) as AuthenticatorTransportFuture[],
                 })),
@@ -192,7 +192,7 @@ export default async function router(schema: Schema, config: Config) {
             name: Type.String(),
             credential_id: Type.String(),
             created: Type.String(),
-        })
+        }),
     }, async (req, res) => {
         try {
             await assertPasskeysEnabled();
@@ -257,7 +257,7 @@ export default async function router(schema: Schema, config: Config) {
             }))),
             userVerification: Type.Optional(Type.String()),
             extensions: Type.Optional(Type.Unknown()),
-        })
+        }),
     }, async (req, res) => {
         try {
             await assertPasskeysEnabled();
@@ -287,8 +287,9 @@ export default async function router(schema: Schema, config: Config) {
             token: Type.String(),
             access: Type.Enum(AuthUserAccess),
             email: Type.String(),
+            session: Type.String(),
             certRenewalRequired: Type.Optional(Type.Boolean()),
-        })
+        }),
     }, async (req, res) => {
         try {
             await assertPasskeysEnabled();
@@ -307,15 +308,17 @@ export default async function router(schema: Schema, config: Config) {
             }
 
             const challengeKey = `auth:${req.body.credential.response?.clientDataJSON
-                    ? (() => {
+                ? (() => {
                         try {
                             const clientData = JSON.parse(
-                                Buffer.from(req.body.credential.response.clientDataJSON, 'base64url').toString()
+                                Buffer.from(req.body.credential.response.clientDataJSON, 'base64url').toString(),
                             );
                             return clientData.challenge || '';
-                        } catch { return ''; }
+                        } catch {
+                            return '';
+                        }
                     })()
-                    : ''}`;
+                : ''}`;
 
             const expectedChallenge = await config.models.ProfilePasskey.consumeChallenge(challengeKey);
 
@@ -370,7 +373,7 @@ export default async function router(schema: Schema, config: Config) {
             });
 
             await config.models.Profile.commit(profile.username, {
-                last_login: new Date().toISOString()
+                last_login: new Date().toISOString(),
             });
 
             let certRenewalRequired = false;
@@ -387,10 +390,11 @@ export default async function router(schema: Schema, config: Config) {
             res.json({
                 access,
                 email: profile.username,
+                session: session.id,
                 token: jwt.sign(
                     { access, email: profile.username, s: session.id },
                     config.SigningSecret,
-                    { expiresIn: '16h' }
+                    { expiresIn: '16h' },
                 ),
                 ...(certRenewalRequired ? { certRenewalRequired: true } : {}),
             });
@@ -409,7 +413,7 @@ export default async function router(schema: Schema, config: Config) {
         res: Type.Object({
             status: Type.Integer(),
             message: Type.String(),
-        })
+        }),
     }, async (req, res) => {
         try {
             await assertPasskeysEnabled();
