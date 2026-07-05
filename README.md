@@ -1,6 +1,6 @@
 <p align=center><img src='./api/web/public/CloudTAKLogo.svg' alt='CloudTAK Logo' width='128'/></p>
 
-<h1 align=center>CloudTAK (Fork)</h1>
+<h1 align=center>CloudTAK</h1>
 
 <p align=center>Full Featured in-browser TAK Client</p>
 <p align=center>&</p>
@@ -8,22 +8,13 @@
 
 <img src='./docs/Screenshot.png' alt='Screenshot of CloudTAK'/>
 
-## About this fork
-
-This is a fork of [dfpc-coe/CloudTAK](https://github.com/dfpc-coe/CloudTAK)
-maintained for **our own server deployment** — it is not a general-purpose
-distribution, and changes here are tailored to our environment.
-
-**Versioning:** this fork uses its own version scheme in
-`api/package.json` / `api/web/package.json` instead of upstream's semver.
-
-### Upstream sync status
+## Upstream sync status
 
 | | |
 |---|---|
 | **Last synced with upstream** | 2026-07-05 |
 | **Upstream commit at sync** | `f4d19bf29` (v13.32.0, 2026-07-04) |
-| **Fork version after sync** | `TG.002.0` (upstream base 13.32.0) |
+| **Version after sync** | `TG.002.0` (upstream base 13.32.0) |
 
 To pull in new upstream changes:
 
@@ -32,15 +23,15 @@ git fetch upstream            # upstream = https://github.com/dfpc-coe/CloudTAK
 git merge upstream/main
 ```
 
-Conflicts will almost always be in the files listed below — resolve keeping this
-fork's feature set, then **update the sync date and commit in the table above**.
+Conflicts will almost always be in the files listed below — resolve keeping the
+custom feature set, then **update the sync date and commit in the table above**.
 
-### Our changes vs upstream
+## Changes vs upstream
 
-Everything custom in this fork is part of the **video recordings & video wall
+Everything custom here is part of the **video recordings & video wall
 feature set**, plus a few operational tweaks. Modified/added files:
 
-#### Backend (api/)
+### Backend (api/)
 
 - `api/lib/control/video-service.ts` — Recording storage support: `/recordings`
   helpers (`recordingFilePath`, `streamRecordingSegment`, `segmentFileSize`,
@@ -57,7 +48,7 @@ feature set**, plus a few operational tweaks. Modified/added files:
   `ProtocolPopulation.READ` so real (not placeholder) read credentials are
   returned.
 
-#### Frontend (api/web/)
+### Frontend (api/web/)
 
 - `api/web/src/components/VideoWall/Main.vue` — Video wall reworked as a
   **fullscreen overlay inside the main app** (upstream has a standalone
@@ -74,7 +65,7 @@ feature set**, plus a few operational tweaks. Modified/added files:
   overlay, reduced HLS buffer for live streams.
 - `api/web/src/App.vue` — Polls `/api/video/paths` every 30s for the sidebar
   active-video badge; the "new version available" banner is hidden (upgrades
-  are managed centrally in our deployment).
+  are managed centrally).
 - `api/web/src/stores/modules/menu.ts` — `activeVideoCount` badge on the Videos
   menu item.
 - `api/web/src/components/CloudTAK/MainMenuContents.vue` — App-switcher dropdown
@@ -84,20 +75,11 @@ feature set**, plus a few operational tweaks. Modified/added files:
 - `api/web/vite.config.ts` — Removed the `video` build entry; dev proxy target
   overridable via `CLOUDTAK_API_TARGET`.
 
-#### Operational
+### Operational
 
 - `docker-compose.yml` — Persistent bind mounts: `.docker-media-recordings` →
   `/recordings` (api + media containers) and `.docker-postgis` for the
   database.
 - `.dockerignore` *(new)* — keeps local data dirs (recordings, postgis, store)
   and `node_modules` out of the Docker build context.
-- `api/package.json`, `api/web/package.json` — `TG.xxx.x` version scheme.
-
-## Upstream documentation
-
-- Deployment: https://docs.cloudtak.io/deploy/
-- Local development: https://docs.cloudtak.io/develop/
-- Administration: https://docs.cloudtak.io/admin/
-
-> [!NOTE]
-> Local development and Docker Compose expose the core map experience, but a full AWS deployment is still required for the complete optional ETL infrastructure.
+- `api/package.json`, `api/web/package.json` — custom version scheme.
