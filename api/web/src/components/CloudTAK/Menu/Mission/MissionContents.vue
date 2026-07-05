@@ -129,7 +129,7 @@
                             />
                             <TablerIconButton
                                 title='Download Asset'
-                                @click='downloadFile(content.name, content.hash)'
+                                @click='props.subscription.contents.download(content.name, content.hash)'
                             >
                                 <IconDownload
                                     :size='24'
@@ -186,7 +186,7 @@
                             </TablerIconButton>
                             <TablerIconButton
                                 title='Download Asset'
-                                @click='downloadFile(content.name, content.hash)'
+                                @click='props.subscription.contents.download(content.name, content.hash)'
                             >
                                 <IconDownload
                                     :size='32'
@@ -204,15 +204,16 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, computed, useTemplateRef } from 'vue';
+import { ref, computed, useTemplateRef, onMounted } from 'vue';
+import { Preferences } from '@capacitor/preferences';
 import { from } from 'rxjs';
 import { liveQuery } from 'dexie';
 import { useObservable } from '@vueuse/rxjs';
 import type { Ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { std, stdurl, server } from '../../../../std.ts';
+import { stdurl, server } from '../../../../std.ts';
 import Subscription from '../../../../base/subscription.ts';
-import type { DBSubscriptionContent } from '../../../../base/database.ts';
+import type { DBSubscriptionContent } from '../../../../database.ts';
 import type { Attachment } from '../../../../types.ts';
 import { useFloatStore } from '../../../../stores/float.ts';
 import {
@@ -275,6 +276,11 @@ const filteredContents = computed(() => {
 
 const uploadRef = useTemplateRef<typeof Upload>('upload');
 const upload = ref(false);
+const token = ref<string | null>(null);
+
+onMounted(async () => {
+    token.value = (await Preferences.get({ key: 'token' })).value;
+});
 
 const loading = ref(false)
 
@@ -283,9 +289,7 @@ async function deleteFile(hash: string) {
 }
 
 const uploadHeaders = computed(() => {
-    const headers: Record<string, string> = {
-        Authorization: `Bearer ${localStorage.token}`,
-    }
+    const headers: Record<string, string> = {}
 
     if (props.subscription.token) {
         headers.MissionAuthorization = props.subscription.token;
@@ -314,16 +318,6 @@ async function uploadStaged(ev: { name: string }) {
     await props.subscription.fetch();
 }
 
-async function downloadFile(name: string, hash: string): Promise<void> {
-    const url = stdurl(`/api/marti/api/files/${hash}`)
-    url.searchParams.set('token', localStorage.token);
-    url.searchParams.set('name', name);
-
-    await std(url, {
-        download: true
-    })
-}
-
 async function importFile(name: string, hash: string) {
     loading.value = true;
 
@@ -341,7 +335,7 @@ async function importFile(name: string, hash: string) {
 
 function downloadAssetUrl(hash: string, name: string) {
     const url = stdurl(`/api/marti/api/files/${hash}`)
-    url.searchParams.set('token', localStorage.token);
+    if (token.value) url.searchParams.set('token', token.value);
     url.searchParams.set('name', name);
     return url.toString();
 }

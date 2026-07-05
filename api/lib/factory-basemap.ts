@@ -27,5 +27,3 @@ export function fromProtocol(protocol?: string, basemap?: InferSelectModel<typeo
         return new ZXYBasemap(basemap);
     }
 }
-
-

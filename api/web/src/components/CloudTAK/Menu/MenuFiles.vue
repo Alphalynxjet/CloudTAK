@@ -24,7 +24,6 @@
             >
                 <Upload
                     :url='stdurl(`/api/import`)'
-                    :headers='uploadHeaders()'
                     method='PUT'
                     size-warning
                     @cancel='upload = false'
@@ -217,7 +216,8 @@
 
 <script setup lang='ts'>
 import { useRouter } from 'vue-router';
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
+import { Preferences } from '@capacitor/preferences';
 import type { ProfileFile, ProfileFileList } from '../../../types.ts';
 import PathManager from '../../../base/path-manager.ts';
 import type { PathNode } from '../../../base/path-manager.ts';
@@ -246,18 +246,27 @@ import GroupSelectModal from '../../util/GroupSelectModal.vue';
 import PathBrowser from '../util/PathBrowser.vue';
 import FileRow from './MenuFilesRow.vue';
 import MenuTemplate from '../util/MenuTemplate.vue';
-import { useMapStore } from '../../../stores/map.ts';
-import Overlay from '../../../base/overlay.ts';
+import OverlayManager from '../../../base/overlay.ts';
+import type { Subscription } from 'dexie';
 import Upload from '../../util/Upload.vue';
 
-const mapStore = useMapStore();
+const overlayUrls = ref<Set<string>>(new Set());
+let overlaySubscription: Subscription | undefined;
 
-const overlayUrls = computed<Set<string>>(() => {
-    return new Set(
-        mapStore.overlays
-            .filter((overlay) => overlay.mode === 'profile' && overlay.url)
-            .map((overlay) => overlay.url as string)
-    );
+onMounted(() => {
+    overlaySubscription = OverlayManager.liveList().subscribe({
+        next: (items) => {
+            overlayUrls.value = new Set(
+                items
+                    .filter((overlay) => overlay.mode === 'profile' && overlay.url)
+                    .map((overlay) => String(overlay.url))
+            );
+        }
+    });
+});
+
+onUnmounted(() => {
+    overlaySubscription?.unsubscribe();
 });
 
 const router = useRouter();
@@ -547,27 +556,23 @@ async function createOverlay(asset: ProfileFile) {
         }
 
         if (new URL(metadata.tiles[0]).pathname.endsWith('.mvt')) {
-            mapStore.addOverlay(await Overlay.create({
+            await OverlayManager.createLoaded({
                 url: stdurl(`/api/profile/asset/${encodeURIComponent(asset.id)}.pmtiles/tile`).toString(),
                 name: asset.name,
                 mode: 'profile',
                 mode_id: asset.name,
                 iconset: asset.iconset,
                 type: 'vector',
-            }, {
-                before: mapStore.getOverlayBeforeId()
-            }));
+            });
         } else {
-            mapStore.addOverlay(await Overlay.create({
+            await OverlayManager.createLoaded({
                 url: stdurl(`/api/profile/asset/${encodeURIComponent(asset.id)}.pmtiles/tile`).toString(),
                 name: asset.name,
                 mode: 'profile',
                 mode_id: asset.name,
                 iconset: asset.iconset,
                 type: 'raster',
-            }, {
-                before: mapStore.getOverlayBeforeId()
-            }));
+            });
         }
 
         loading.value = false;
@@ -579,21 +584,23 @@ async function createOverlay(asset: ProfileFile) {
     }
 }
 
-function uploadHeaders() {
-    return {
-        Authorization: `Bearer ${localStorage.token}`
-    };
-}
-
 function uploadComplete(event: unknown) {
     upload.value = false;
     const imp = event as { imports: Array<{ uid: string }> };
     router.push(`/menu/imports/${imp.imports[0].uid}`)
 }
 
-async function downloadAsset(asset: ProfileFile) {
-    const url = stdurl(`/api/profile/asset/${asset.id}.${asset.name.split('.').pop()}`);
-    url.searchParams.set('token', localStorage.token);
+async function downloadAsset(asset: ProfileFile, type: 'original' | 'pmtiles') {
+    const { value: token } = await Preferences.get({ key: 'token' });
+    
+    let url: URL;
+    if (type === 'pmtiles') {
+        url = stdurl(`/api/profile/asset/${asset.id}.pmtiles`);
+    } else {
+        url = stdurl(`/api/profile/asset/${asset.id}.${asset.name.split('.').pop()}`);
+    }
+    
+    if (token) url.searchParams.set('token', token);
     window.open(url, "_blank")
 }
 

@@ -18,13 +18,13 @@ test('POST: /template/mission - create parent template', async () => {
         const res = await flight.fetch('/api/template/mission', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'Parent Template',
                 description: 'Parent template for logs',
-                icon: validIcon
-            }
+                icon: validIcon,
+            },
         }, true);
 
         templateId = res.body.id;
@@ -38,13 +38,13 @@ test('GET: /template/mission/:mission/log - empty', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}/log`, {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
             total: 0,
-            items: []
+            items: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -56,7 +56,7 @@ test('POST: /template/mission/:mission/log - create', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}/log`, {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'Test Log',
@@ -66,10 +66,10 @@ test('POST: /template/mission/:mission/log - create', async () => {
                 schema: {
                     type: 'object',
                     properties: {
-                        field1: { type: 'string' }
-                    }
-                }
-            }
+                        field1: { type: 'string' },
+                    },
+                },
+            },
         }, true);
 
         assert.ok(res.body.id, 'returned an id');
@@ -80,8 +80,8 @@ test('POST: /template/mission/:mission/log - create', async () => {
         assert.deepEqual(res.body.schema, {
             type: 'object',
             properties: {
-                field1: { type: 'string' }
-            }
+                field1: { type: 'string' },
+            },
         });
         assert.ok(res.body.created, 'returned a created date');
         assert.ok(res.body.updated, 'returned an updated date');
@@ -97,8 +97,8 @@ test('GET: /template/mission/:mission/log - list', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}/log`, {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.total, 1);
@@ -116,8 +116,8 @@ test('GET: /template/mission/:mission/log/:log - get', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}/log/${logId}`, {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.id, logId);
@@ -128,8 +128,8 @@ test('GET: /template/mission/:mission/log/:log - get', async () => {
         assert.deepEqual(res.body.schema, {
             type: 'object',
             properties: {
-                field1: { type: 'string' }
-            }
+                field1: { type: 'string' },
+            },
         });
     } catch (err) {
         assert.ifError(err);
@@ -141,7 +141,7 @@ test('PATCH: /template/mission/:mission/log/:log - update', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}/log/${logId}`, {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'Updated Log',
@@ -150,10 +150,10 @@ test('PATCH: /template/mission/:mission/log/:log - update', async () => {
                 schema: {
                     type: 'object',
                     properties: {
-                        field1: { type: 'number' }
-                    }
-                }
-            }
+                        field1: { type: 'number' },
+                    },
+                },
+            },
         }, true);
 
         assert.equal(res.body.id, logId);
@@ -164,8 +164,8 @@ test('PATCH: /template/mission/:mission/log/:log - update', async () => {
         assert.deepEqual(res.body.schema, {
             type: 'object',
             properties: {
-                field1: { type: 'number' }
-            }
+                field1: { type: 'number' },
+            },
         });
     } catch (err) {
         assert.ifError(err);
@@ -177,8 +177,8 @@ test('DELETE: /template/mission/:mission/log/:log - delete', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}/log/${logId}`, {
             method: 'DELETE',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.status, 200);
@@ -193,8 +193,8 @@ test('GET: /template/mission/:mission/log/:log - not found', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}/log/${logId}`, {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, false);
 
         assert.equal(res.status, 404);
@@ -208,8 +208,8 @@ test('DELETE: /template/mission/:mission - delete parent template', async () => 
         const res = await flight.fetch(`/api/template/mission/${templateId}`, {
             method: 'DELETE',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.status, 200);

@@ -5,6 +5,7 @@
         :back='false'
         :border='false'
         :standalone='false'
+        :scroll='false'
     >
         <template #buttons>
             <TablerRefreshButton
@@ -35,7 +36,7 @@ import ProfileConfig from '../../../../base/profile.ts';
 import MenuTemplate from '../../util/MenuTemplate.vue';
 import GenericChat from '../../util/GenericChat.vue';
 import Subscription from '../../../../base/subscription.ts';
-import type { DBSubscriptionChat } from '../../../../base/database.ts';
+import type { DBSubscriptionChat } from '../../../../database.ts';
 import { TablerRefreshButton } from '@tak-ps/vue-tabler';
 import { useMapStore } from '../../../../stores/map.ts';
 

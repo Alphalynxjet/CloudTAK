@@ -18,13 +18,13 @@ test('GET: api/import', async () => {
         const res = await flight.fetch('/api/import', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
             total: 0,
-            items: []
+            items: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -36,11 +36,11 @@ test('POST: api/import', async () => {
         const res = await flight.fetch('/api/import', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
-                name: 'test.zip'
-            }
+                name: 'test.zip',
+            },
         }, true);
 
         assert.ok(res.body.id, 'has id');
@@ -62,7 +62,7 @@ test('POST: api/import', async () => {
             username: 'admin@example.com',
             source: 'Upload',
             source_id: null,
-            config: {}
+            config: {},
         });
     } catch (err) {
         assert.ifError(err);
@@ -74,11 +74,11 @@ test('PUT: api/import/:import - upload failure marks import failed', async () =>
         const createRes = await flight.fetch('/api/import', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
-                name: 'failed-upload.zip'
-            }
+                name: 'failed-upload.zip',
+            },
         }, true);
 
         const failedId = createRes.body.id;
@@ -86,15 +86,15 @@ test('PUT: api/import/:import - upload failure marks import failed', async () =>
         const s3Stub = Sinon.stub(S3, 'put').rejects(new Error('S3 exploded'));
         const body = new FormData();
         body.append('file', new Blob(['file-content'], {
-            type: 'application/zip'
+            type: 'application/zip',
         }), 'test.zip');
 
         const uploadRes = await flight.fetch(`/api/import/${failedId}`, {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
-            body
+            body,
         }, false);
 
         assert.equal(uploadRes.status, 500, 'should surface upload failure');
@@ -103,7 +103,7 @@ test('PUT: api/import/:import - upload failure marks import failed', async () =>
         const res = await flight.fetch(`/api/import/${failedId}`, {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
         }, false);
 
@@ -123,7 +123,7 @@ test(`GET: api/import/<id>`, async () => {
         const res = await flight.fetch(`/api/import/${id}`, {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
         }, true);
 
@@ -144,7 +144,7 @@ test(`GET: api/import/<id>`, async () => {
             username: 'admin@example.com',
             source: 'Upload',
             source_id: null,
-            config: {}
+            config: {},
         });
     } catch (err) {
         assert.ifError(err);
@@ -156,11 +156,11 @@ test(`PATCH: api/import/<id>`, async () => {
         const res = await flight.fetch(`/api/import/${id}`, {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
-                status: 'Running'
-            }
+                status: 'Running',
+            },
         }, true);
 
         assert.ok(res.body.id, 'has id');
@@ -180,7 +180,7 @@ test(`PATCH: api/import/<id>`, async () => {
             username: 'admin@example.com',
             source: 'Upload',
             source_id: null,
-            config: {}
+            config: {},
         });
     } catch (err) {
         assert.ifError(err);
@@ -192,11 +192,11 @@ test(`PATCH: api/import/<id> - Success`, async () => {
         const res = await flight.fetch(`/api/import/${id}`, {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
-                status: 'Success'
-            }
+                status: 'Success',
+            },
         }, true);
 
         assert.ok(res.body.id, 'has id');
@@ -216,7 +216,7 @@ test(`PATCH: api/import/<id> - Success`, async () => {
             username: 'admin@example.com',
             source: 'Upload',
             source_id: null,
-            config: {}
+            config: {},
         });
     } catch (err) {
         assert.ifError(err);
@@ -230,8 +230,8 @@ test('POST: api/import/:import/result - Missing Auth', async () => {
             body: {
                 name: 'Test Feature',
                 type: 'Feature',
-                type_id: 'feature-123'
-            }
+                type_id: 'feature-123',
+            },
         }, false);
 
         assert.equal(res.status, 401, 'should return 401 for missing auth');
@@ -245,13 +245,13 @@ test('POST: api/import/:import/result - Wrong User', async () => {
         const res = await flight.fetch(`/api/import/${id}/result`, {
             method: 'POST',
             auth: {
-                bearer: flight.token.user
+                bearer: flight.token.user,
             },
             body: {
                 name: 'Test Feature',
                 type: 'Feature',
-                type_id: 'feature-123'
-            }
+                type_id: 'feature-123',
+            },
         }, false);
 
         assert.equal(res.status, 400, 'should return 400 for wrong user');
@@ -266,13 +266,13 @@ test('POST: api/import/:import/result - Success', async () => {
         const res = await flight.fetch(`/api/import/${id}/result`, {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'Test Feature',
                 type: 'Feature',
-                type_id: 'feature-123'
-            }
+                type_id: 'feature-123',
+            },
         }, true);
 
         assert.ok(res.body.id, 'has id');
@@ -290,7 +290,7 @@ test('GET: api/import/:import - Verify Result Appears', async () => {
         const res = await flight.fetch(`/api/import/${id}`, {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
         }, true);
 
@@ -312,7 +312,7 @@ test('GET: api/import/:import - Verify Result Appears', async () => {
             ...res.body,
             created: '2025-09-12T00:12:46.016Z',
             updated: '2025-09-12T00:12:46.016Z',
-            results: [] // Clear results for comparison
+            results: [], // Clear results for comparison
         }, {
             id: id,
             created: '2025-09-12T00:12:46.016Z',
@@ -324,7 +324,7 @@ test('GET: api/import/:import - Verify Result Appears', async () => {
             username: 'admin@example.com',
             source: 'Upload',
             source_id: null,
-            config: {}
+            config: {},
         });
     } catch (err) {
         assert.ifError(err);

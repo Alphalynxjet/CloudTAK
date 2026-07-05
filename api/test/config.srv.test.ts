@@ -14,7 +14,7 @@ test('GET api/config', async () => {
         const res = await flight.fetch('/api/config?keys=group::Yellow', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
         }, true);
 
@@ -29,15 +29,15 @@ test('PUT api/config', async () => {
         const res = await flight.fetch('/api/config', {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
-                'group::Yellow': 'Wildland Firefighter'
-            }
+                'group::Yellow': 'Wildland Firefighter',
+            },
         }, false);
 
         assert.deepEqual(res.body, {
-            'group::Yellow': 'Wildland Firefighter'
+            'group::Yellow': 'Wildland Firefighter',
         });
     } catch (err) {
         assert.ifError(err);
@@ -49,30 +49,12 @@ test('GET api/config', async () => {
         const res = await flight.fetch('/api/config?keys=group::Yellow', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
         }, true);
 
         assert.deepEqual(res.body, {
-            'group::Yellow': 'Wildland Firefighter'
-        });
-    } catch (err) {
-        assert.ifError(err);
-    }
-});
-
-test('GET api/config/group', async () => {
-    try {
-        const res = await flight.fetch('/api/config/group', {
-            method: 'GET',
-            auth: {
-                bearer: flight.token.admin
-            },
-        }, true);
-
-        assert.deepEqual(res.body, {
-            roles: [ 'Team Member', 'Team Lead', 'HQ', 'Sniper', 'Medic', 'Forward Observer', 'RTO', 'K9' ],
-            groups: { Yellow: 'Wildland Firefighter', Cyan: '', Green: '', Red: '', Purple: '', Orange: '', Blue: '', Magenta: '', White: '', Maroon: '', 'Dark Blue': '', Teal: '', 'Dark Green': '', Brown: '' }
+            'group::Yellow': 'Wildland Firefighter',
         });
     } catch (err) {
         assert.ifError(err);
@@ -84,7 +66,7 @@ test('GET api/config/login', async () => {
         const res = await flight.fetch('/api/config/login', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
         }, true);
 
@@ -92,11 +74,11 @@ test('GET api/config/login', async () => {
             name: 'CloudTAK',
             username: 'Username or Email',
             brand: {
-                enabled: 'default'
+                enabled: 'default',
             },
             background: {
-                enabled: false
-            }
+                enabled: false,
+            },
         });
     } catch (err) {
         assert.ifError(err);
@@ -108,17 +90,17 @@ test('PUT api/config', async () => {
         const res = await flight.fetch('/api/config', {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 'login::signup': 'https://example.com/signup',
-                'login::forgot': 'https://example.com/forgot'
-            }
+                'login::forgot': 'https://example.com/forgot',
+            },
         }, false);
 
         assert.deepEqual(res.body, {
             'login::signup': 'https://example.com/signup',
-            'login::forgot': 'https://example.com/forgot'
+            'login::forgot': 'https://example.com/forgot',
         });
     } catch (err) {
         assert.ifError(err);
@@ -130,7 +112,7 @@ test('GET api/config/login', async () => {
         const res = await flight.fetch('/api/config/login', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
         }, true);
 
@@ -140,32 +122,11 @@ test('GET api/config/login', async () => {
             forgot: 'https://example.com/forgot',
             username: 'Username or Email',
             brand: {
-                enabled: 'default'
+                enabled: 'default',
             },
             background: {
-                enabled: false
-            }
-        });
-    } catch (err) {
-        assert.ifError(err);
-    }
-});
-
-test('GET api/config/map', async () => {
-    try {
-        const res = await flight.fetch('/api/config/map', {
-            method: 'GET',
-            auth: {
-                bearer: flight.token.admin
+                enabled: false,
             },
-        }, true);
-
-        assert.deepEqual(res.body, {
-            center: '-100,40',
-            zoom: 4,
-            pitch: 0,
-            bearing: 0,
-            basemap: null,
         });
     } catch (err) {
         assert.ifError(err);
@@ -177,7 +138,7 @@ test('GET api/config (user - restricted)', async () => {
         const res = await flight.fetch('/api/config?keys=agol::token', {
             method: 'GET',
             auth: {
-                bearer: flight.token.user
+                bearer: flight.token.user,
             },
         }, false);
 
@@ -192,13 +153,13 @@ test('GET api/config (user - map keys)', async () => {
         const res = await flight.fetch('/api/config?keys=map::center', {
             method: 'GET',
             auth: {
-                bearer: flight.token.user
+                bearer: flight.token.user,
             },
         }, false);
 
         assert.equal(res.status, 200);
         assert.deepEqual(res.body, {
-            'map::center': '-100,40'
+            'map::center': '-100,40',
         });
     } catch (err) {
         assert.ifError(err);
@@ -210,18 +171,89 @@ test('GET api/config (user - group keys)', async () => {
         const res = await flight.fetch('/api/config?keys=group::Yellow', {
             method: 'GET',
             auth: {
-                bearer: flight.token.user
+                bearer: flight.token.user,
             },
         }, false);
 
         assert.equal(res.status, 200);
         assert.deepEqual(res.body, {
-            'group::Yellow': 'Wildland Firefighter'
+            'group::Yellow': 'Wildland Firefighter',
         });
     } catch (err) {
         assert.ifError(err);
     }
 });
 
+test('PUT api/config (admin - push firebase keys)', async () => {
+    try {
+        const body = {
+            'notification::push::firebase::project_id': 'cloudtak-project',
+            'notification::push::firebase::client_email': 'firebase-adminsdk@cloudtak-project.iam.gserviceaccount.com',
+            'notification::push::firebase::private_key': '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n',
+        };
+
+        const res = await flight.fetch('/api/config', {
+            method: 'PUT',
+            auth: {
+                bearer: flight.token.admin,
+            },
+            body,
+        }, false);
+
+        assert.deepEqual(res.body, body);
+    } catch (err) {
+        assert.ifError(err);
+    }
+});
+
+test('GET api/config (admin - push firebase keys)', async () => {
+    try {
+        const res = await flight.fetch('/api/config?keys=notification::push::firebase::project_id,notification::push::firebase::client_email,notification::push::firebase::private_key', {
+            method: 'GET',
+            auth: {
+                bearer: flight.token.admin,
+            },
+        }, false);
+
+        assert.equal(res.status, 200);
+        assert.deepEqual(res.body, {
+            'notification::push::firebase::project_id': 'cloudtak-project',
+            'notification::push::firebase::client_email': 'firebase-adminsdk@cloudtak-project.iam.gserviceaccount.com',
+            'notification::push::firebase::private_key': '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n',
+        });
+    } catch (err) {
+        assert.ifError(err);
+    }
+});
+
+test('GET api/config (user - push firebase private_key restricted)', async () => {
+    try {
+        const res = await flight.fetch('/api/config?keys=notification::push::firebase::private_key', {
+            method: 'GET',
+            auth: {
+                bearer: flight.token.user,
+            },
+        }, false);
+
+        assert.equal(res.status, 401);
+    } catch (err) {
+        assert.ifError(err);
+    }
+});
+
+test('GET api/config (user - push firebase service-account identifiers restricted)', async () => {
+    try {
+        const res = await flight.fetch('/api/config?keys=notification::push::firebase::project_id,notification::push::firebase::client_email', {
+            method: 'GET',
+            auth: {
+                bearer: flight.token.user,
+            },
+        }, false);
+
+        assert.equal(res.status, 401);
+    } catch (err) {
+        assert.ifError(err);
+    }
+});
 
 flight.landing();

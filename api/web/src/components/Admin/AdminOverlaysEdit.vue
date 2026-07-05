@@ -56,7 +56,6 @@
                     :is-system-admin='true'
                     :url='tilejsonUrl'
                     :upload-url='uploadUrl'
-                    :upload-headers='uploadHeadersValue'
                     @change-type='resetBasemapType'
                     @update:scope='scope = $event'
                     @update:warn-sharing='warnSharing = $event'
@@ -97,7 +96,7 @@
 <script setup lang='ts'>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { std, stdurl } from '../../std.ts';
+import { server, stdurl } from '../../std.ts';
 import StyleContainer from '../ETL/Styling/Style.vue';
 import UserSelect from '../util/UserSelect.vue';
 import BasemapTypeSelector from '../CloudTAK/Menu/Basemaps/TypeSelector.vue';
@@ -162,6 +161,7 @@ const editing = ref<EditingBasemap>({
     snapping_layer: '',
     styles: [],
     tilejson: '',
+    encoding: null,
 });
 
 const showTypeSelector = computed(() => {
@@ -192,11 +192,6 @@ const activeSelectorComponent = computed(() => {
 });
 
 const uploadUrl = computed(() => stdurl('/api/basemap'));
-const uploadHeadersValue = computed<Record<string, string>>(() => {
-    return {
-        Authorization: `Bearer ${localStorage['token']}`,
-    };
-});
 
 onMounted(async () => {
     if (!isNew.value) {
@@ -236,20 +231,20 @@ async function fetchTileJSON(): Promise<void> {
             || importType === 'mapserver'
             || importType === 'imageserver';
 
-        const data = await std('/api/basemap', isArcGISImport
+        const putRes = await server.PUT('/api/basemap', isArcGISImport
             ? {
-                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+                body: {
                     type: importType,
                     url: tilejsonUrl.value,
-                } satisfies BasemapImportRequest),
+                } satisfies BasemapImportRequest,
             }
             : {
-                method: 'PUT',
                 headers: { 'Content-Type': 'text/plain' },
                 body: tilejsonUrl.value,
-            }) as BasemapImport;
+            });
+        if (putRes.error) throw new Error(putRes.error.message);
+        const data = putRes.data as BasemapImport;
 
         editing.value = normalizeEditing(data);
         vectorLayers.value = Array.isArray(data.vector_layers)
@@ -274,7 +269,10 @@ function processImport(body: unknown): void {
 async function deleteOverlay(): Promise<void> {
     loading.value = true;
     try {
-        await std(`/api/basemap/${basemapId.value}`, { method: 'DELETE' });
+        const res = await server.DELETE('/api/basemap/{:basemapid}', {
+            params: { path: { ':basemapid': basemapId.value! } },
+        });
+        if (res.error) throw new Error(res.error.message);
         router.push('/admin/overlay');
     } catch (err) {
         loading.value = false;
@@ -308,6 +306,7 @@ async function saveOverlay(): Promise<void> {
         if (!body.tilesize && body.tilesize !== 0) body.tilesize = null;
         if (!body.collection || body.collection.trim().length === 0) body.collection = null;
         if (!body.attribution || body.attribution.trim().length === 0) body.attribution = null;
+        if (body.encoding === null) delete body.encoding;
 
         if (editing.value.type !== 'vector' || !editing.value.title || editing.value.title.trim().length === 0) {
             delete body.title;
@@ -323,22 +322,48 @@ async function saveOverlay(): Promise<void> {
             body.snapping_layer = null;
         }
 
-        if (basemapId.value) {
-            const url = stdurl(`/api/basemap/${basemapId.value}`);
-            if (username.value) url.searchParams.set('impersonate', username.value);
-            await std(url, {
-                method: 'PATCH',
-                body: { scope: scope.value, protocol: selectedBasemapType.value, ...body },
-            });
-        } else {
-            const url = stdurl('/api/basemap');
-            if (username.value) url.searchParams.set('impersonate', username.value);
-            const res = await std(url, {
-                method: 'POST',
-                body: { scope: scope.value, protocol: selectedBasemapType.value, ...body },
-            }) as { id: number };
+        // Convert null to undefined for API compatibility
+        const apiBody = {
+            ...body,
+            tilesize: body.tilesize ?? undefined,
+            snapping_layer: body.snapping_layer ?? undefined,
+            encoding: body.encoding ?? undefined,
+        };
 
-            router.push(`/admin/overlay/${res.id}`);
+        if (basemapId.value) {
+            const res = await server.PATCH('/api/basemap/{:basemapid}', {
+                params: {
+                    path: { ':basemapid': basemapId.value },
+                    ...(username.value ? { query: { impersonate: username.value } } : {}),
+                },
+                body: {
+                    scope: scope.value,
+                    protocol: selectedBasemapType.value as 'zxy' | 'mapserver' | 'imageserver' | 'featureserver' | 'hosted',
+                    ...apiBody,
+                },
+            });
+            if (res.error) throw new Error(res.error.message);
+        } else {
+            const res = await server.POST('/api/basemap', {
+                params: {
+                    ...(username.value ? { query: { impersonate: username.value } } : {}),
+                },
+                body: {
+                    scope: scope.value,
+                    protocol: selectedBasemapType.value as 'zxy' | 'mapserver' | 'imageserver' | 'featureserver' | 'hosted',
+                    ...apiBody,
+                    name: apiBody.name || '',
+                    url: apiBody.url || '',
+                    overlay: apiBody.overlay ?? false,
+                    hidden: apiBody.hidden ?? false,
+                    tilesize: apiBody.tilesize ?? 256,
+                    sharing_enabled: apiBody.sharing_enabled ?? true,
+                    snapping_enabled: apiBody.snapping_enabled ?? false,
+                },
+            });
+            if (res.error) throw new Error(res.error.message);
+
+            router.push(`/admin/overlay/${res.data.id}`);
         }
 
         loading.value = false;
@@ -351,21 +376,29 @@ async function saveOverlay(): Promise<void> {
 async function fetchOverlay(): Promise<void> {
     loading.value = true;
 
-    const res = await std(`/api/basemap/${route.params.overlay}`) as Record<string, unknown>;
+    const overlayRes = await server.GET('/api/basemap/{:basemapid}', {
+        params: { path: { ':basemapid': Number(route.params.overlay) } },
+    });
+    if (overlayRes.error) throw new Error(overlayRes.error.message);
+    const overlayData = overlayRes.data;
+    if (typeof overlayData === 'string') throw new Error('Unexpected response');
 
-    username.value = (res.username as string) ?? '';
-    scope.value = res.username ? 'user' : 'server';
+    username.value = overlayData.username ?? '';
+    scope.value = overlayData.username ? 'user' : 'server';
 
-    editing.value = normalizeEditing(res as BasemapImport);
+    editing.value = normalizeEditing(overlayData as unknown as BasemapImport);
     selectedBasemapType.value = inferBasemapType(editing.value.url)
-        ?? (res.protocol as BasemapSourceType)
+        ?? (overlayData.protocol as BasemapSourceType)
         ?? 'zxy';
 
     vectorLayers.value = [];
     if (editing.value.type === 'vector') {
-        const tileData = await std(`/api/basemap/${route.params.overlay}/tiles`) as BasemapImport;
-        vectorLayers.value = Array.isArray(tileData.vector_layers)
-            ? tileData.vector_layers as VectorLayerDescriptor[]
+        const tilesRes = await server.GET('/api/basemap/{:basemapid}/tiles', {
+            params: { path: { ':basemapid': Number(route.params.overlay) } },
+        });
+        if (tilesRes.error) throw new Error(tilesRes.error.message);
+        vectorLayers.value = Array.isArray(tilesRes.data.vector_layers)
+            ? tilesRes.data.vector_layers as VectorLayerDescriptor[]
             : [];
     }
 

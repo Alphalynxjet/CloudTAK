@@ -6,7 +6,7 @@ import type { Message, LocalMessage, Transform, ConvertResponse } from '../types
 export default class GeoJSON implements Transform {
     static register() {
         return {
-            inputs: ['.geojsonld', '.geojson', '.json']
+            inputs: ['.geojsonld', '.geojson', '.json'],
         };
     }
 
@@ -15,7 +15,7 @@ export default class GeoJSON implements Transform {
 
     constructor(
         msg: Message,
-        local: LocalMessage
+        local: LocalMessage,
     ) {
         this.msg = msg;
         this.local = local;
@@ -54,7 +54,7 @@ export default class GeoJSON implements Transform {
             const fileStream = fs.createReadStream(inputFile);
             const rl = readline.createInterface({
                 input: fileStream,
-                crlfDelay: Infinity
+                crlfDelay: Infinity,
             });
 
             const writeStream = fs.createWriteStream(outputFile);
@@ -83,7 +83,7 @@ export default class GeoJSON implements Transform {
         }
 
         return {
-            asset: outputFile
-        }
+            asset: outputFile,
+        };
     }
 }

@@ -16,18 +16,18 @@ test('GET: api/profile/overlay - empty', async () => {
         const res = await flight.fetch('/api/profile/overlay', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
-             removed: [],
-             total: 0,
-             items: [],
-             available: {
-                 terrain: false,
-                 snapping: false
-             }
+            removed: [],
+            total: 0,
+            items: [],
+            available: {
+                terrain: false,
+                snapping: false,
+            },
         });
     } catch (err) {
         assert.ifError(err);
@@ -44,8 +44,8 @@ test('GET: api/profile/overlay - profile mode, S3 present -> kept in items', asy
             body: {
                 name: 'Kept Profile Overlay',
                 mode: 'profile',
-                url: '/profile/admin@example.com/kept.pmtiles'
-            }
+                url: '/profile/admin@example.com/kept.pmtiles',
+            },
         }, false);
 
         assert.equal(post.status, 200, `POST overlay failed: ${JSON.stringify(post.body)}`);
@@ -57,7 +57,7 @@ test('GET: api/profile/overlay - profile mode, S3 present -> kept in items', asy
 
         const res = await flight.fetch('/api/profile/overlay', {
             method: 'GET',
-            auth: { bearer: flight.token.admin }
+            auth: { bearer: flight.token.admin },
         }, true);
 
         assert.equal(res.body.total, 1);
@@ -71,7 +71,7 @@ test('GET: api/profile/overlay - profile mode, S3 present -> kept in items', asy
         // Explicit cleanup so subsequent tests start with an empty list
         await flight.fetch(`/api/profile/overlay?id=${post.body.id}`, {
             method: 'DELETE',
-            auth: { bearer: flight.token.admin }
+            auth: { bearer: flight.token.admin },
         }, false);
     } catch (err) {
         assert.ifError(err);
@@ -91,8 +91,8 @@ test('GET: api/profile/overlay - profile mode, S3 absent -> moved to removed', a
             body: {
                 name: 'Missing Profile Overlay',
                 mode: 'profile',
-                url: '/profile/admin@example.com/gone.pmtiles'
-            }
+                url: '/profile/admin@example.com/gone.pmtiles',
+            },
         }, false);
 
         assert.equal(post.status, 200, `POST overlay failed: ${JSON.stringify(post.body)}`);
@@ -107,7 +107,7 @@ test('GET: api/profile/overlay - profile mode, S3 absent -> moved to removed', a
 
         const res = await flight.fetch('/api/profile/overlay', {
             method: 'GET',
-            auth: { bearer: flight.token.admin }
+            auth: { bearer: flight.token.admin },
         }, true);
 
         assert.equal(res.body.total, 0);
@@ -133,8 +133,8 @@ test('GET: api/profile/overlay - data mode, S3 absent -> moved to removed', asyn
                 name: 'Missing Data Overlay',
                 mode: 'data',
                 mode_id: 'layer-1',
-                url: '/data/layer-1/mydata.pmtiles'
-            }
+                url: '/data/layer-1/mydata.pmtiles',
+            },
         }, false);
 
         assert.equal(post.status, 200, `POST overlay failed: ${JSON.stringify(post.body)}`);
@@ -149,7 +149,7 @@ test('GET: api/profile/overlay - data mode, S3 absent -> moved to removed', asyn
 
         const res = await flight.fetch('/api/profile/overlay', {
             method: 'GET',
-            auth: { bearer: flight.token.admin }
+            auth: { bearer: flight.token.admin },
         }, true);
 
         assert.equal(res.body.total, 0);
@@ -172,8 +172,11 @@ test('POST: api/basemap - for overlay tests', async () => {
             body: {
                 name: 'Overlay Test Basemap',
                 url: 'https://tiles.example.com/basemap/{z}/{x}/{y}',
-                sharing_enabled: false
-            }
+                protocol: 'zxy',
+                type: 'raster-dem',
+                encoding: 'terrarium',
+                sharing_enabled: false,
+            },
         }, true);
 
         assert.equal(res.body.id, 1);
@@ -191,15 +194,15 @@ test('GET: api/profile/overlay - basemap mode, basemap present -> kept in items'
                 name: 'Kept Basemap Overlay',
                 mode: 'basemap',
                 mode_id: '1',
-                url: 'https://tiles.example.com/basemap/{z}/{x}/{y}'
-            }
+                url: 'https://tiles.example.com/basemap/{z}/{x}/{y}',
+            },
         }, true);
 
         assert.equal(post.body.name, 'Kept Basemap Overlay');
 
         const res = await flight.fetch('/api/profile/overlay', {
             method: 'GET',
-            auth: { bearer: flight.token.admin }
+            auth: { bearer: flight.token.admin },
         }, true);
 
         assert.equal(res.body.total, 1);
@@ -208,6 +211,36 @@ test('GET: api/profile/overlay - basemap mode, basemap present -> kept in items'
         assert.equal(res.body.items[0].name, 'Kept Basemap Overlay');
         // basemap overlays carry TileJSON actions
         assert.ok(res.body.items[0].actions);
+        assert.equal(res.body.items[0].encoding, 'terrarium');
+    } catch (err) {
+        assert.ifError(err);
+    }
+});
+
+test('POST: api/profile/overlay - second basemap mode rejected -> only one basemap allowed', async () => {
+    try {
+        // A basemap overlay ("Kept Basemap Overlay") already exists from the previous test
+        const post = await flight.fetch('/api/profile/overlay', {
+            method: 'POST',
+            auth: { bearer: flight.token.admin },
+            body: {
+                name: 'Second Basemap Overlay',
+                mode: 'basemap',
+                mode_id: '1',
+                url: 'https://tiles.example.com/basemap/{z}/{x}/{y}',
+            },
+        }, false);
+
+        assert.equal(post.status, 400, `Expected 400 but got: ${JSON.stringify(post.body)}`);
+        assert.equal(post.body.message, 'A basemap overlay already exists - only a single basemap is allowed');
+
+        // Ensure the rejected basemap was not persisted
+        const res = await flight.fetch('/api/profile/overlay', {
+            method: 'GET',
+            auth: { bearer: flight.token.admin },
+        }, true);
+
+        assert.equal(res.body.items.filter((item: { mode: string }) => item.mode === 'basemap').length, 1);
     } catch (err) {
         assert.ifError(err);
     }
@@ -218,12 +251,12 @@ test('GET: api/profile/overlay - basemap mode, basemap deleted -> moved to remov
         // Delete the basemap created in the previous test; the overlay still references id=1
         await flight.fetch('/api/basemap/1', {
             method: 'DELETE',
-            auth: { bearer: flight.token.admin }
+            auth: { bearer: flight.token.admin },
         }, false);
 
         const res = await flight.fetch('/api/profile/overlay', {
             method: 'GET',
-            auth: { bearer: flight.token.admin }
+            auth: { bearer: flight.token.admin },
         }, true);
 
         assert.equal(res.body.total, 0);
@@ -251,9 +284,9 @@ test('GET: api/profile/overlay - mission mode, access denied -> moved to removed
                         createTime: '2024-01-01T00:00:00Z',
                         role: {
                             type: 'MISSION_SUBSCRIBER',
-                            permissions: []
-                        }
-                    }
+                            permissions: [],
+                        },
+                    },
                 }));
                 response.end();
                 return true;
@@ -268,8 +301,8 @@ test('GET: api/profile/overlay - mission mode, access denied -> moved to removed
                 name: 'Denied Mission Overlay',
                 mode: 'mission',
                 mode_id: 'test-mission',
-                url: 'https://tak.example.com/Marti/api/missions/test-mission'
-            }
+                url: 'https://tak.example.com/Marti/api/missions/test-mission',
+            },
         }, false);
 
         assert.equal(post.status, 200, `POST overlay failed: ${JSON.stringify(post.body)}`);
@@ -283,7 +316,7 @@ test('GET: api/profile/overlay - mission mode, access denied -> moved to removed
                 response.write(JSON.stringify({
                     version: '3',
                     type: 'com.bbn.marti.sync.model.Mission',
-                    data: []
+                    data: [],
                 }));
                 response.end();
                 return true;
@@ -293,7 +326,7 @@ test('GET: api/profile/overlay - mission mode, access denied -> moved to removed
 
         const res = await flight.fetch('/api/profile/overlay', {
             method: 'GET',
-            auth: { bearer: flight.token.admin }
+            auth: { bearer: flight.token.admin },
         }, true);
 
         assert.equal(res.body.total, 0);

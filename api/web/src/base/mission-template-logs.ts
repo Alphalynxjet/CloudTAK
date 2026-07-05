@@ -1,9 +1,9 @@
-import { db } from './database.ts';
-import { std, stdurl } from '../std.ts';
+import { db } from '../database.ts';
+import { server } from '../std.ts';
 import type {
     MissionTemplateLogList
 } from '../types.ts'
-import type { DBMissionTemplateLog } from './database.ts';
+import type { DBMissionTemplateLog } from '../database.ts';
 
 export default class MissionTemplateLogs {
     template: string;
@@ -15,9 +15,16 @@ export default class MissionTemplateLogs {
     }
 
     async refresh(): Promise<void> {
-        const url = stdurl(`/api/template/mission/${this.template}/log`);
+        const res = await server.GET('/api/template/mission/{:mission}/log', {
+            params: {
+                path: { ':mission': this.template },
+                query: { limit: 100, page: 0, order: 'asc', sort: 'name', filter: '' }
+            }
+        });
 
-        const list = await std(url) as MissionTemplateLogList;
+        if (res.error) throw new Error(res.error.message);
+
+        const list: MissionTemplateLogList = res.data;
 
         await db.transaction('rw', db.mission_template_log, async () => {
             await db.mission_template_log

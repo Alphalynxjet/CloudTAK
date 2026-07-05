@@ -11,7 +11,7 @@ const SAMPLE_TILES = [
     { label: 'Mid-Atlantic seaboard', z: 5, x: 9, y: 12 },
     { label: 'Sierra Nevada ridge', z: 6, x: 11, y: 24 },
     { label: 'Central Midwest', z: 7, x: 32, y: 48 },
-    { label: 'Kentucky foothills', z: 8, x: 66, y: 98 }
+    { label: 'Kentucky foothills', z: 8, x: 66, y: 98 },
 ];
 
 function assertBoundsIn4326(bounds: Array<number>): void {
@@ -33,14 +33,14 @@ test('POST: api/basemap - ArcGIS Imagery Source', async () => {
         const res = await flight.fetch('/api/basemap', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'USGS NAIP Imagery',
                 url: ARCGIS_IMAGERY_URL,
                 sharing_enabled: false,
-                protocol: 'imageserver'
-            }
+                protocol: 'imageserver',
+            },
         }, true);
 
         delete res.body.created;
@@ -70,7 +70,7 @@ test('POST: api/basemap - ArcGIS Imagery Source', async () => {
             styles: [],
             type: 'raster',
             snapping_enabled: false,
-            snapping_layer: null
+            snapping_layer: null,
         });
     } catch (err) {
         assert.ifError(err);
@@ -82,14 +82,14 @@ test('POST: api/basemap - ArcGIS Imagery Source WKT Spatial Reference', async ()
         const res = await flight.fetch('/api/basemap', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'Jefferson County 2020 Ortho',
                 url: JEFFERSON_COUNTY_IMAGERY_URL,
                 sharing_enabled: false,
-                protocol: 'imageserver'
-            }
+                protocol: 'imageserver',
+            },
         }, true);
 
         assert.equal(res.status, 200);
@@ -108,14 +108,14 @@ test('GET: api/basemap/1/tiles - ArcGIS Imagery TileJSON', async () => {
         const res = await flight.fetch('/api/basemap/1/tiles', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual({
             ...res.body,
             bounds: undefined,
-            center: undefined
+            center: undefined,
         }, {
             tilejson: '3.0.0',
             version: '1.0.0',
@@ -129,10 +129,10 @@ test('GET: api/basemap/1/tiles - ArcGIS Imagery TileJSON', async () => {
             minzoom: 0,
             maxzoom: 16,
             actions: { feature: [] },
-            tiles: [ 'http://localhost:5001/api/basemap/1/tiles/{z}/{x}/{y}' ]
+            tiles: ['http://localhost:5001/api/basemap/1/tiles/{z}/{x}/{y}'],
         });
 
-        assert.notDeepEqual(res.body.bounds, [ -180, -90, 180, 90 ]);
+        assert.notDeepEqual(res.body.bounds, [-180, -90, 180, 90]);
         assertBoundsIn4326(res.body.bounds);
     } catch (err) {
         assert.ifError(err);
@@ -144,8 +144,8 @@ test('GET: api/basemap/2/tiles - ArcGIS Imagery TileJSON WKT Spatial Reference',
         const res = await flight.fetch('/api/basemap/2/tiles', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.type, 'raster');
@@ -165,11 +165,11 @@ for (const { label, z, x, y } of SAMPLE_TILES) {
             const res = await flight.fetch(`/api/basemap/1/tiles/${z}/${x}/${y}`, {
                 method: 'GET',
                 auth: {
-                    bearer: flight.token.admin
-                }
+                    bearer: flight.token.admin,
+                },
             }, {
                 verify: false,
-                json: false
+                json: false,
             });
 
             assert.equal(res.status, 200);

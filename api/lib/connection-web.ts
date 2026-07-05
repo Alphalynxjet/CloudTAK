@@ -1,17 +1,17 @@
-import { Static } from '@sinclair/typebox'
+import { Static } from '@sinclair/typebox';
 import { randomUUID } from 'node:crypto';
-import { DirectChat, MissionChat, CoTParser }  from '@tak-ps/node-cot';
-import type { Feature }  from '@tak-ps/node-cot';
-import { WebSocket } from 'ws';
+import { DirectChat, MissionChat, CoTParser } from '@tak-ps/node-cot';
+import type { Feature } from '@tak-ps/node-cot';
+import WebSocket from 'ws';
 import { ConnectionClient } from './connection-pool.js';
 
 export class ConnectionWebSocket {
     ws: WebSocket;
     format: string;
-    session?: number;
+    session?: string;
     client?: ConnectionClient;
 
-    constructor(ws: WebSocket, format = 'raw', client?: ConnectionClient, session?: number) {
+    constructor(ws: WebSocket, format = 'raw', client?: ConnectionClient, session?: string) {
         this.ws = ws;
         this.format = format;
         this.session = session;
@@ -40,13 +40,13 @@ export class ConnectionWebSocket {
                                 mission: {
                                     name: msg.data.chatroom,
                                     id: missionId,
-                                    guid: msg.data.guid
+                                    guid: msg.data.guid,
                                 },
                                 senderCallsign: msg.data.from.callsign,
                                 message: msg.data.message,
                                 messageId: msg.data.messageId,
                                 parent: msg.data.parent,
-                                groupOwner: msg.data.groupOwner
+                                groupOwner: msg.data.groupOwner,
                             });
                         } else {
                             chat = new DirectChat(msg.data);
@@ -65,8 +65,8 @@ export class ConnectionWebSocket {
                             sender_callsign: msg.data.from.callsign,
                             sender_uid: msg.data.from.uid,
                             message_id: feat.properties.chat ? (feat.properties.chat.messageId || randomUUID()) : randomUUID(),
-                            message: msg.data.message
-                        })
+                            message: msg.data.message,
+                        });
                     } else {
                         const feat = msg.data as Static<typeof Feature.Feature>;
 
@@ -75,11 +75,12 @@ export class ConnectionWebSocket {
                         client.tak.write([cot], { stripFlow: true });
                     }
                 } catch (err) {
+                    console.warn('Warning: Validation Error on WebSocket CoT message:', String(data), err);
                     this.ws.send(JSON.stringify({
                         type: 'Error',
                         properties: {
-                            message: err instanceof Error ? err.message : String(err)
-                        }
+                            message: err instanceof Error ? err.message : String(err),
+                        },
                     }));
                 }
             });
@@ -90,5 +91,4 @@ export class ConnectionWebSocket {
         this.ws.close();
         delete this.client;
     }
-
 }

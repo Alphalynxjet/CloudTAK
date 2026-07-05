@@ -11,7 +11,7 @@ import { DataPackage } from '@tak-ps/node-cot';
 import FileCommands from '@tak-ps/node-tak/lib/api/files';
 import Sinon from 'sinon';
 import stream2buffer from '../lib/stream.js';
-import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const flight = new Flight();
 
@@ -28,7 +28,7 @@ test('GET: api/marti/package - empty', async () => {
                 response.setHeader('Content-Type', 'application/json');
                 response.write(JSON.stringify({
                     resultCount: 0,
-                    results: []
+                    results: [],
                 }));
                 response.end();
 
@@ -41,13 +41,13 @@ test('GET: api/marti/package - empty', async () => {
         const res = await flight.fetch('/api/marti/package', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
             total: 0,
-            items: []
+            items: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -91,7 +91,7 @@ test('GET api/marti/package/:uid - includes channels from the newest duplicate-h
                         Hash: 'latest-hash',
                         CreatorUid: 'pkgowner',
                         Name: 'Visible Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -103,13 +103,13 @@ test('GET api/marti/package/:uid - includes channels from the newest duplicate-h
                         Name: 'Visible Package',
                         Hash: 'latest-hash',
                         Time: '2024-01-01T00:00:00.000Z',
-                        Groups: 'Blue'
+                        Groups: 'Blue',
                     }, {
                         Name: 'Visible Package',
                         Hash: 'latest-hash',
                         Time: '2025-01-01T00:00:00.000Z',
-                        Groups: 'Blue, Red'
-                    }]
+                        Groups: 'Blue, Red',
+                    }],
                 }));
                 response.end();
 
@@ -122,8 +122,8 @@ test('GET api/marti/package/:uid - includes channels from the newest duplicate-h
         const res = await flight.fetch('/api/marti/package/visible-pkg-uid', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.status, 200);
@@ -151,14 +151,14 @@ test('POST api/marti/package - Upload Data Package', async () => {
                         return;
                     }
 
-                     const bb = new Busboy({
-                         headers: {
-                             'content-type': contentType
-                         },
-                         limits: {
-                             files: 1
-                         }
-                     });
+                    const bb = new Busboy({
+                        headers: {
+                            'content-type': contentType,
+                        },
+                        limits: {
+                            files: 1,
+                        },
+                    });
 
                     bb.on('file', (fieldname, file) => {
                         const writeStream = fs.createWriteStream(outputPath);
@@ -172,7 +172,7 @@ test('POST api/marti/package - Upload Data Package', async () => {
                         writeStream.on('error', (err) => {
                             reject(err);
                         });
-                    })
+                    });
 
                     bb.on('error', (err) => {
                         reject(err);
@@ -221,7 +221,7 @@ test('POST api/marti/package - Upload Data Package', async () => {
                         Hash: 'abc123',
                         CreatorUid: 'creator123',
                         Name: 'Test Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -235,15 +235,15 @@ test('POST api/marti/package - Upload Data Package', async () => {
         const file = await fsp.readFile(new URL('./data/SingleFeaturePackage.zip', import.meta.url));
 
         body.append('file', new Blob([new Uint8Array(file)], {
-            type: 'application/zip'
+            type: 'application/zip',
         }), 'SingleFeaturePackage.zip');
 
         await flight.fetch('/api/marti/package', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
-            body
+            body,
         }, true);
     } catch (err) {
         assert.ifError(err);
@@ -267,14 +267,14 @@ test('POST api/marti/package - Upload KML', async () => {
                         return;
                     }
 
-                     const bb = new Busboy({
-                         headers: {
-                             'content-type': contentType
-                         },
-                         limits: {
-                             files: 1
-                         }
-                     });
+                    const bb = new Busboy({
+                        headers: {
+                            'content-type': contentType,
+                        },
+                        limits: {
+                            files: 1,
+                        },
+                    });
 
                     bb.on('file', (fieldname, file) => {
                         const writeStream = fs.createWriteStream(outputPath);
@@ -288,7 +288,7 @@ test('POST api/marti/package - Upload KML', async () => {
                         writeStream.on('error', (err) => {
                             reject(err);
                         });
-                    })
+                    });
 
                     bb.on('error', (err) => {
                         reject(err);
@@ -340,7 +340,7 @@ test('POST api/marti/package - Upload KML', async () => {
                         Hash: 'abc123',
                         CreatorUid: 'creator123',
                         Name: 'Test Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -354,15 +354,15 @@ test('POST api/marti/package - Upload KML', async () => {
         const file = await fsp.readFile(new URL('./data/point.kml', import.meta.url));
 
         body.append('file', new Blob([new Uint8Array(file)], {
-            type: 'application/vnd.google-earth.kml+xml'
+            type: 'application/vnd.google-earth.kml+xml',
         }), 'point.kml');
 
         await flight.fetch('/api/marti/package', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
-            body
+            body,
         }, true);
     } catch (err) {
         assert.ifError(err);
@@ -420,7 +420,7 @@ test('PUT api/marti/package - private package upload uses application/zip for fi
         const res = await flight.fetch('/api/marti/package', {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 public: false,
@@ -434,10 +434,10 @@ test('PUT api/marti/package - private package upload uses application/zip for fi
                     properties: {},
                     geometry: {
                         type: 'Point',
-                        coordinates: [-77.0365, 38.8977]
-                    }
-                }]
-            }
+                        coordinates: [-77.0365, 38.8977],
+                    },
+                }],
+            },
         }, true);
 
         assert.equal(res.status, 200);
@@ -461,7 +461,7 @@ test('PATCH api/marti/package/:uid - User with overlapping active channel can up
     try {
         flight.config?.conns.set('pkgowner@example.com', {
             channels: new Set([1]),
-            destroy: () => {}
+            destroy: () => {},
         } as any);
 
         flight.tak.mockMarti.unshift(async (request: IncomingMessage, response: ServerResponse) => {
@@ -499,14 +499,14 @@ test('PATCH api/marti/package/:uid - User with overlapping active channel can up
                         Hash: 'latest-hash',
                         CreatorUid: 'pkgowner',
                         Name: 'Patch Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
                 return true;
             } else if (request.method === 'GET' && request.url === '/Marti/sync/content?hash=latest-hash') {
                 response.writeHead(200, {
-                    'Content-Type': 'application/zip'
+                    'Content-Type': 'application/zip',
                 });
                 response.end(Buffer.from('zip-payload'));
 
@@ -531,7 +531,7 @@ test('PATCH api/marti/package/:uid - User with overlapping active channel can up
                         type: 'SYSTEM',
                         bitpos: 2,
                         active: false,
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -543,13 +543,13 @@ test('PATCH api/marti/package/:uid - User with overlapping active channel can up
                         Name: 'Patch Package',
                         Hash: 'latest-hash',
                         Time: '2024-01-01T00:00:00.000Z',
-                        Groups: 'Blue'
+                        Groups: 'Blue',
                     }, {
                         Name: 'Patch Package',
                         Hash: 'latest-hash',
                         Time: searchCount > 1 ? '2025-01-01T00:00:00.000Z' : '2024-01-01T00:00:00.000Z',
-                        Groups: searchCount > 1 ? 'Blue, Red' : 'Blue'
-                    }]
+                        Groups: searchCount > 1 ? 'Blue, Red' : 'Blue',
+                    }],
                 }));
                 response.end();
 
@@ -582,13 +582,13 @@ test('PATCH api/marti/package/:uid - User with overlapping active channel can up
         const res = await flight.fetch('/api/marti/package/patch-pkg-uid', {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.pkgowner
+                bearer: flight.token.pkgowner,
             },
             body: {
                 channels: ['Blue', 'Red'],
                 keywords: ['updated'],
-                expiration: 1234567890
-            }
+                expiration: 1234567890,
+            },
         }, true);
 
         assert.equal(res.status, 200);
@@ -616,7 +616,7 @@ test('PATCH api/marti/package/:uid - closes downloaded content when channel uplo
         destroy() {
             this.destroyed = true;
             return this;
-        }
+        },
     };
 
     const resumeSpy = Sinon.spy(content, 'resume');
@@ -647,7 +647,7 @@ test('PATCH api/marti/package/:uid - closes downloaded content when channel uplo
                         Hash: 'failed-hash',
                         CreatorUid: 'pkgowner',
                         Name: 'Failed Upload Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -660,11 +660,11 @@ test('PATCH api/marti/package/:uid - closes downloaded content when channel uplo
         const res = await flight.fetch('/api/marti/package/failed-upload-pkg-uid', {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
-                channels: ['Blue']
-            }
+                channels: ['Blue'],
+            },
         }, false);
 
         assert.equal(res.status, 500);
@@ -684,7 +684,7 @@ test('PATCH api/marti/package/:uid - User without overlapping active channel can
     try {
         flight.config?.conns.set('pkgviewer@example.com', {
             channels: new Set([1]),
-            destroy: () => {}
+            destroy: () => {},
         } as any);
 
         flight.tak.mockMarti.unshift(async (request: IncomingMessage, response: ServerResponse) => {
@@ -707,7 +707,7 @@ test('PATCH api/marti/package/:uid - User without overlapping active channel can
                         Hash: 'forbidden-hash',
                         CreatorUid: 'pkgowner',
                         Name: 'Forbidden Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -731,7 +731,7 @@ test('PATCH api/marti/package/:uid - User without overlapping active channel can
                         type: 'SYSTEM',
                         bitpos: 2,
                         active: false,
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -742,8 +742,8 @@ test('PATCH api/marti/package/:uid - User without overlapping active channel can
                     data: [{
                         Name: 'Forbidden Package',
                         Hash: 'forbidden-hash',
-                        Groups: 'Red'
-                    }]
+                        Groups: 'Red',
+                    }],
                 }));
                 response.end();
 
@@ -763,11 +763,11 @@ test('PATCH api/marti/package/:uid - User without overlapping active channel can
         const res = await flight.fetch('/api/marti/package/forbidden-pkg-uid', {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.pkgviewer
+                bearer: flight.token.pkgviewer,
             },
             body: {
-                keywords: ['updated']
-            }
+                keywords: ['updated'],
+            },
         }, false);
 
         assert.equal(res.status, 403);
@@ -808,7 +808,7 @@ test('PATCH api/marti/package/:uid - Admin can update any package', async () => 
                         Hash: 'admin-hash',
                         CreatorUid: 'someone-else',
                         Name: 'Admin Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -828,8 +828,8 @@ test('PATCH api/marti/package/:uid - Admin can update any package', async () => 
                     data: [{
                         Name: 'Admin Package',
                         Hash: 'admin-hash',
-                        Groups: 'Blue'
-                    }]
+                        Groups: 'Blue',
+                    }],
                 }));
                 response.end();
 
@@ -842,11 +842,11 @@ test('PATCH api/marti/package/:uid - Admin can update any package', async () => 
         const res = await flight.fetch('/api/marti/package/admin-pkg-uid', {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
-                keywords: ['admin-updated']
-            }
+                keywords: ['admin-updated'],
+            },
         }, true);
 
         assert.equal(res.status, 200);
@@ -882,7 +882,7 @@ test('DELETE api/marti/package/:uid - Owner can delete own package', async () =>
                         Hash: 'owner-hash-123',
                         CreatorUid: 'pkgowner',
                         Name: 'Owner Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -900,14 +900,14 @@ test('DELETE api/marti/package/:uid - Owner can delete own package', async () =>
         const res = await flight.fetch('/api/marti/package/owner-pkg-uid?hash=owner-hash-123', {
             method: 'DELETE',
             auth: {
-                bearer: flight.token.pkgowner
-            }
+                bearer: flight.token.pkgowner,
+            },
         }, true);
 
         assert.equal(res.status, 200);
         assert.deepEqual(res.body, {
             status: 200,
-            message: 'Package Deleted'
+            message: 'Package Deleted',
         });
     } catch (err) {
         assert.ifError(err);
@@ -938,7 +938,7 @@ test('DELETE api/marti/package/:uid - Non-owner non-admin cannot delete', async 
                         Hash: 'other-hash-456',
                         CreatorUid: 'someone-else',
                         Name: 'Other Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -951,8 +951,8 @@ test('DELETE api/marti/package/:uid - Non-owner non-admin cannot delete', async 
         const res = await flight.fetch('/api/marti/package/other-pkg-uid?hash=other-hash-456', {
             method: 'DELETE',
             auth: {
-                bearer: flight.token.pkgowner
-            }
+                bearer: flight.token.pkgowner,
+            },
         }, false);
 
         assert.equal(res.status, 403);
@@ -986,7 +986,7 @@ test('DELETE api/marti/package/:uid - Admin can delete any package', async () =>
                         Hash: 'any-hash-789',
                         CreatorUid: 'someone-else',
                         Name: 'Any Package',
-                    }]
+                    }],
                 }));
                 response.end();
 
@@ -1004,14 +1004,14 @@ test('DELETE api/marti/package/:uid - Admin can delete any package', async () =>
         const res = await flight.fetch('/api/marti/package/any-pkg-uid?hash=any-hash-789', {
             method: 'DELETE',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.status, 200);
         assert.deepEqual(res.body, {
             status: 200,
-            message: 'Package Deleted'
+            message: 'Package Deleted',
         });
     } catch (err) {
         assert.ifError(err);

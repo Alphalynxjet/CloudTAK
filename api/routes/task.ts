@@ -1,4 +1,4 @@
-import { Type } from '@sinclair/typebox'
+import { Type } from '@sinclair/typebox';
 import { sql, inArray } from 'drizzle-orm';
 import Schema from '@openaddresses/batch-schema';
 import Err from '@openaddresses/batch-error';
@@ -9,10 +9,11 @@ import { Task } from '../lib/schema.js';
 import { Layer as LayerSchema } from '../lib/schema.js';
 import { StandardResponse, TaskResponse } from '../lib/types.js';
 import * as Default from '../lib/limits.js';
+import { isSafeUrl } from '@tak-ps/node-safeurl';
 
 export enum TaskSchemaEnum {
     OUTPUT = 'schema:output',
-    INPUT = 'schema:input'
+    INPUT = 'schema:input',
 }
 
 export default async function router(schema: Schema, config: Config) {
@@ -26,14 +27,14 @@ export default async function router(schema: Schema, config: Config) {
             order: Default.Order,
             sort: Type.String({
                 default: 'created',
-                enum: Object.keys(Task)
+                enum: Object.keys(Task),
             }),
-            filter: Default.Filter
+            filter: Default.Filter,
         }),
         res: Type.Object({
             total: Type.Integer(),
-            items: Type.Array(TaskResponse)
-        })
+            items: Type.Array(TaskResponse),
+        }),
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req);
@@ -45,7 +46,7 @@ export default async function router(schema: Schema, config: Config) {
                 sort: req.query.sort,
                 where: sql`
                     name ~* ${req.query.filter}
-                `
+                `,
             });
 
             res.json(list);
@@ -63,13 +64,13 @@ export default async function router(schema: Schema, config: Config) {
             prefix: Type.String(),
             favorite: Type.Boolean({
                 default: false,
-                description: 'Displayed first in the Task List'
+                description: 'Displayed first in the Task List',
             }),
             logo: Type.Optional(Type.String()),
             repo: Type.Optional(Type.String()),
             readme: Type.Optional(Type.String()),
         }),
-        res: TaskResponse
+        res: TaskResponse,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -89,7 +90,7 @@ export default async function router(schema: Schema, config: Config) {
         params: Type.Object({
             taskid: Type.Integer(),
         }),
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -98,7 +99,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 status: 200,
-                message: 'Registered Task Deleted'
+                message: 'Registered Task Deleted',
             });
         } catch (err) {
             Err.respond(err, res);
@@ -113,9 +114,9 @@ export default async function router(schema: Schema, config: Config) {
             total: Type.Integer(),
             items: Type.Record(
                 Type.String(),
-                Type.Array(Type.String())
-            )
-        })
+                Type.Array(Type.String()),
+            ),
+        }),
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req);
@@ -124,7 +125,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 total,
-                items: Object.fromEntries(tasks)
+                items: Object.fromEntries(tasks),
             });
         } catch (err) {
             Err.respond(err, res);
@@ -142,9 +143,9 @@ export default async function router(schema: Schema, config: Config) {
             total: Type.Integer(),
             versions: Type.Array(Type.Object({
                 version: Type.String(),
-                deployed: Type.Boolean()
-            }))
-        })
+                deployed: Type.Boolean(),
+            })),
+        }),
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req);
@@ -155,10 +156,10 @@ export default async function router(schema: Schema, config: Config) {
 
             const deployedVersions = new Set<string>();
             if (list.length) {
-                const taskNames = list.map((v) => `${req.params.task}-v${v}`);
+                const taskNames = list.map(v => `${req.params.task}-v${v}`);
                 const deployedLayers = await config.models.Layer.list({
                     limit: list.length,
-                    where: inArray(LayerSchema.task, taskNames)
+                    where: inArray(LayerSchema.task, taskNames),
                 });
 
                 for (const layer of deployedLayers.items) {
@@ -169,10 +170,10 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 total: list.length,
-                versions: list.map((version) => ({
+                versions: list.map(version => ({
                     version,
-                    deployed: deployedVersions.has(version)
-                }))
+                    deployed: deployedVersions.has(version),
+                })),
             });
         } catch (err) {
             Err.respond(err, res);
@@ -187,7 +188,7 @@ export default async function router(schema: Schema, config: Config) {
             version: Type.String(),
         }),
         description: 'Delete a given task version',
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -203,7 +204,7 @@ export default async function router(schema: Schema, config: Config) {
                 limit: 1,
                 where: sql`
                     task = ${task}::TEXT
-                `
+                `,
             });
 
             if (layers.total !== 0) throw new Err(400, null, 'Cannot delete a task with an active Layer');
@@ -212,7 +213,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 status: 200,
-                message: 'Deleted Task Version'
+                message: 'Deleted Task Version',
             });
         } catch (err) {
             Err.respond(err, res);
@@ -224,9 +225,9 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Task',
         description: 'Return a single Registered Task',
         params: Type.Object({
-            task: Type.Integer()
+            task: Type.Integer(),
         }),
-        res: TaskResponse
+        res: TaskResponse,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req);
@@ -244,7 +245,7 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Task',
         description: 'Update Registered Task',
         params: Type.Object({
-            task: Type.String()
+            task: Type.String(),
         }),
         body: Type.Object({
             name: Type.Optional(Type.String()),
@@ -252,10 +253,10 @@ export default async function router(schema: Schema, config: Config) {
             logo: Type.Optional(Type.String()),
             readme: Type.Optional(Type.String()),
             favorite: Type.Optional(Type.Boolean({
-                description: 'Displayed first in the Task List'
+                description: 'Displayed first in the Task List',
             })),
         }),
-        res: TaskResponse
+        res: TaskResponse,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -264,7 +265,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json(task);
         } catch (err) {
-             Err.respond(err, res);
+            Err.respond(err, res);
         }
     });
 
@@ -273,11 +274,11 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Task',
         description: 'Return README Contents',
         params: Type.Object({
-            task: Type.Integer()
+            task: Type.Integer(),
         }),
         res: Type.Object({
-            body: Type.String()
-        })
+            body: Type.String(),
+        }),
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req);
@@ -285,15 +286,20 @@ export default async function router(schema: Schema, config: Config) {
             const task = await config.models.Task.from(req.params.task);
 
             if (task.readme) {
+                // Skip isSafeUrl check when StackName=test (test mode)
+                if (process.env.StackName !== 'test') {
+                    const { safe, reason } = await isSafeUrl(task.readme);
+                    if (!safe) throw new Err(400, null, `Blocked URL: ${reason}`);
+                }
                 const readmeres = await fetch(task.readme);
                 res.json({
-                    body: await readmeres.text()
-                })
+                    body: await readmeres.text(),
+                });
             } else {
                 res.json({ body: '' });
             }
         } catch (err) {
-             Err.respond(err, res);
+            Err.respond(err, res);
         }
     });
 }

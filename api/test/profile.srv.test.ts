@@ -13,8 +13,8 @@ test('GET: api/profile', async () => {
         const res = await flight.fetch('/api/profile', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.ok(res.body.last_login);
@@ -46,8 +46,12 @@ test('GET: api/profile', async () => {
             display_coordinate: 'dd',
             display_icon_rotation: true,
             display_text: 'Medium',
+            display_radiation_dose: 'sieverts',
+            geometry_point_type: 'u-d-p',
+            geometry_point_color: '#ff0000',
+            geometry_point_icon: '',
             system_admin: true,
-            agency_admin: []
+            agency_admin: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -59,11 +63,11 @@ test('PATCH: api/profile', async () => {
         const res = await flight.fetch('/api/profile', {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
-                tak_callsign: 'Test Callsign'
-            }
+                tak_callsign: 'Test Callsign',
+            },
         }, true);
 
         assert.ok(res.body.last_login);
@@ -95,8 +99,12 @@ test('PATCH: api/profile', async () => {
             display_coordinate: 'dd',
             display_text: 'Medium',
             display_icon_rotation: true,
+            display_radiation_dose: 'sieverts',
+            geometry_point_type: 'u-d-p',
+            geometry_point_color: '#ff0000',
+            geometry_point_icon: '',
             system_admin: true,
-            agency_admin: []
+            agency_admin: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -108,7 +116,7 @@ test('PUT: api/config - Change Defaults', async () => {
         const res = await flight.fetch('/api/config', {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 'display::stale': 'Immediate',
@@ -121,7 +129,8 @@ test('PUT: api/config - Change Defaults', async () => {
                 'display::coordinate': 'mgrs',
                 'display::text': 'Large',
                 'display::icon_rotation': false,
-            }
+                'display::radiation_dose': 'rems',
+            },
         }, true);
 
         assert.ok(res.body['display::stale']);
@@ -137,8 +146,8 @@ test('GET: api/profile - New User / New Defaults', async () => {
         const res = await flight.fetch('/api/profile', {
             method: 'GET',
             auth: {
-                bearer: flight.token.configtest
-            }
+                bearer: flight.token.configtest,
+            },
         }, true);
 
         assert.ok(res.body.last_login);
@@ -170,8 +179,12 @@ test('GET: api/profile - New User / New Defaults', async () => {
             display_coordinate: 'mgrs',
             display_text: 'Large',
             display_icon_rotation: false,
+            display_radiation_dose: 'rems',
+            geometry_point_type: 'u-d-p',
+            geometry_point_color: '#ff0000',
+            geometry_point_icon: '',
             system_admin: false,
-            agency_admin: []
+            agency_admin: [],
         });
     } catch (err) {
         assert.ifError(err);

@@ -1,13 +1,13 @@
 import Err from '@openaddresses/batch-error';
 import jwt from 'jsonwebtoken';
 import Config from '../config.js';
-import { eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm';
 import { AuthResourceAccess } from '../auth.js';
 import { Type, Static } from '@sinclair/typebox';
 import { VideoLease } from '../schema.js';
 import { VideoLeaseResponse } from '../types.js';
 import { VideoLease_SourceType } from '../enums.js';
-import fetch from '../fetch.js';
+import { fetch, isSafeUrl } from '@tak-ps/node-safeurl';
 import { TAKAPI, APIAuthCertificate } from '@tak-ps/node-tak';
 import fs from 'node:fs';
 import nodePath from 'node:path';
@@ -18,48 +18,48 @@ const RECORDINGS_DIR = '/recordings';
 export enum ProtocolPopulation {
     TEMPLATE,
     WRITE,
-    READ
+    READ,
 }
 
 export enum Protocol {
-    RTSP = "rtsp",
-    RTML = "rtmp",
-    HLS = "hls",
-    WEBRTC = "webrtc",
-    SRT = "srt",
+    RTSP = 'rtsp',
+    RTML = 'rtmp',
+    HLS = 'hls',
+    WEBRTC = 'webrtc',
+    SRT = 'srt',
 }
 
 export enum Action {
-    PUBLISH = "publish",
-    READ = "read",
-    PLAYBACK = "playback",
-    API = "api",
-    METRICS = "metrics",
-    PPROF = "pprof",
+    PUBLISH = 'publish',
+    READ = 'read',
+    PLAYBACK = 'playback',
+    API = 'api',
+    METRICS = 'metrics',
+    PPROF = 'pprof',
 }
 
 export const Protocols = Type.Object({
     rtmp: Type.Optional(Type.Object({
         name: Type.String(),
-        url: Type.String()
+        url: Type.String(),
     })),
     rtsp: Type.Optional(Type.Object({
         name: Type.String(),
-        url: Type.String()
+        url: Type.String(),
     })),
     webrtc: Type.Optional(Type.Object({
         name: Type.String(),
-        url: Type.String()
+        url: Type.String(),
     })),
     hls: Type.Optional(Type.Object({
         name: Type.String(),
-        url: Type.String()
+        url: Type.String(),
     })),
     srt: Type.Optional(Type.Object({
         name: Type.String(),
-        url: Type.String()
-    }))
-})
+        url: Type.String(),
+    })),
+});
 
 export const VideoConfig = Type.Object({
     api: Type.Boolean(),
@@ -91,7 +91,7 @@ export const VideoConfig = Type.Object({
 
     srt: Type.Boolean(),
     srtAddress: Type.String(),
-})
+});
 
 export const PathConfig = Type.Object({
     name: Type.String(),
@@ -108,7 +108,7 @@ export const PathListItem = Type.Object({
             id: Type.String(),
             type: Type.String(),
         }),
-        Type.Null()
+        Type.Null(),
     ]),
 
     ready: Type.Boolean(),
@@ -118,8 +118,8 @@ export const PathListItem = Type.Object({
     bytesSent: Type.Integer(),
     readers: Type.Array(Type.Object({
         type: Type.String(),
-        id: Type.String()
-    }))
+        id: Type.String(),
+    })),
 });
 
 export const Recording = Type.Object({
@@ -132,15 +132,15 @@ export const Recording = Type.Object({
 export const PathsList = Type.Object({
     pageCount: Type.Integer(),
     itemCount: Type.Integer(),
-    items: Type.Array(PathListItem)
-})
+    items: Type.Array(PathListItem),
+});
 
 export const Configuration = Type.Object({
     configured: Type.Boolean(),
     url: Type.Optional(Type.String()),
     external: Type.Optional(Type.String()),
     config: Type.Optional(VideoConfig),
-    paths: Type.Optional(Type.Array(PathListItem))
+    paths: Type.Optional(Type.Array(PathListItem)),
 });
 
 export default class VideoServiceControl {
@@ -174,15 +174,15 @@ export default class VideoServiceControl {
         try {
             const kv = await this.config.models.Setting.from('media::url');
             if (kv.value && typeof kv.value === 'string' && new URL(kv.value)) {
-                video = kv.value
+                video = kv.value;
             } else {
                 throw new Err(400, null, 'Media Service URL is not configured');
             }
         } catch (err) {
             if (err instanceof Error && err.message.includes('Not Found')) {
                 return {
-                    configured: false
-                }
+                    configured: false,
+                };
             } else if (err instanceof Err) {
                 throw err;
             } else {
@@ -195,9 +195,9 @@ export default class VideoServiceControl {
             url: video,
             token: jwt.sign({
                 internal: true,
-                access: AuthResourceAccess.MEDIA
-            }, this.config.SigningSecret)
-        }
+                access: AuthResourceAccess.MEDIA,
+            }, this.config.SigningSecret),
+        };
     }
 
     headers(token?: string): Headers {
@@ -219,23 +219,29 @@ export default class VideoServiceControl {
         const url = new URL('/v3/config/global/get', video.url);
         url.port = '9997';
 
-        const res = await fetch(url, { headers: Object.fromEntries(headers.entries()) })
-        if (!res.ok) throw new Err(500, null, await res.text())
+        const res = await fetch(url, {
+            headers: Object.fromEntries(headers.entries()),
+            safeUrlAllow: [new URL(video.url!).hostname],
+        });
+        if (!res.ok) throw new Err(500, null, await res.text());
         const body = await res.typed(VideoConfig);
 
         // TODO support paging
         const urlPaths = new URL('/path', video.url);
         urlPaths.port = '9997';
 
-        const resPaths = await fetch(urlPaths, { headers: Object.fromEntries(headers.entries()) })
-        if (!resPaths.ok) throw new Err(500, null, await resPaths.text())
+        const resPaths = await fetch(urlPaths, {
+            headers: Object.fromEntries(headers.entries()),
+            safeUrlAllow: [new URL(video.url!).hostname],
+        });
+        if (!resPaths.ok) throw new Err(500, null, await resPaths.text());
 
         const paths = await resPaths.typed(PathsList);
 
         // Special case for supporting internal Docker Compose network
         let external = video.url;
         if (video.url && new URL(video.url).hostname === 'media') {
-            external = 'http://localhost'
+            external = 'http://localhost';
         }
 
         return {
@@ -249,7 +255,7 @@ export default class VideoServiceControl {
 
     async protocols(
         lease: Static<typeof VideoLeaseResponse>,
-        populated = ProtocolPopulation.TEMPLATE
+        populated = ProtocolPopulation.TEMPLATE,
     ): Promise<Static<typeof Protocols>> {
         const protocols: Static<typeof Protocols> = {};
         const c = await this.configuration();
@@ -258,7 +264,7 @@ export default class VideoServiceControl {
 
         if (c.config && c.config.rtsp) {
             // Format: rtsp://localhost:8554/mystream
-            const url = new URL(`/${lease.path}`, c.external.replace(/^http(s)?:/, 'rtsp:'))
+            const url = new URL(`/${lease.path}`, c.external.replace(/^http(s)?:/, 'rtsp:'));
             url.port = c.config.rtspAddress.replace(':', '');
 
             if (lease.read_user && lease.stream_user) {
@@ -268,43 +274,43 @@ export default class VideoServiceControl {
 
                     protocols.rtsp = {
                         name: 'Real-Time Streaming Protocol (RTSP)',
-                        url: String(url)
-                    }
+                        url: String(url),
+                    };
                 } else if (populated === ProtocolPopulation.WRITE && lease.stream_user && lease.stream_pass) {
                     url.username = lease.stream_user;
                     url.password = lease.stream_pass;
 
                     protocols.rtsp = {
                         name: 'Real-Time Streaming Protocol (RTSP)',
-                        url: String(url)
-                    }
+                        url: String(url),
+                    };
                 } else {
-                    const rtspurl = new URL(String(url))
+                    const rtspurl = new URL(String(url));
                     rtspurl.username = 'username';
                     rtspurl.password = 'password';
 
                     protocols.rtsp = {
                         name: 'Real-Time Streaming Protocol (RTSP)',
-                        url: String(rtspurl).replace(/username:password/, '{{username}}:{{password}}')
-                    }
+                        url: String(rtspurl).replace(/username:password/, '{{username}}:{{password}}'),
+                    };
                 }
             } else {
                 protocols.rtsp = {
                     name: 'Real-Time Streaming Protocol (RTSP)',
-                    url: String(url)
-                }
+                    url: String(url),
+                };
             }
         }
 
         if (c.config && c.config.rtmp) {
             // Format: rtmp://localhost/mystream
-            const url = new URL(`/${lease.path}`, c.external.replace(/^http(s)?:/, 'rtmp:'))
+            const url = new URL(`/${lease.path}`, c.external.replace(/^http(s)?:/, 'rtmp:'));
             url.port = c.config.rtmpAddress.replace(':', '');
 
             protocols.rtmp = {
                 name: 'Real-Time Messaging Protocol (RTMP)',
-                url: String(url)
-            }
+                url: String(url),
+            };
 
             if (lease.stream_user && lease.read_user) {
                 if (populated === ProtocolPopulation.TEMPLATE) {
@@ -315,78 +321,77 @@ export default class VideoServiceControl {
                     protocols.rtmp.url = `${protocols.rtmp.url}?user=${lease.stream_user}&pass=${lease.stream_pass}`;
                 }
             }
-
         }
 
         if (c.config && c.config.srt) {
             // Format: srt://localhost:8890?streamid=publish:mystream
-            const url = new URL(c.external.replace(/^http(s)?:/, 'srt:'))
+            const url = new URL(c.external.replace(/^http(s)?:/, 'srt:'));
             url.port = c.config.srtAddress.replace(':', '');
 
             if (lease.stream_user && lease.read_user) {
                 if (populated === ProtocolPopulation.READ) {
                     protocols.srt = {
                         name: 'Secure Reliable Transport (SRT)',
-                        url: String(url) + `?streamid={{mode}}:${lease.path}:${lease.read_user}}:${lease.read_pass}`
-                    }
+                        url: String(url) + `?streamid={{mode}}:${lease.path}:${lease.read_user}}:${lease.read_pass}`,
+                    };
                 } else if (populated === ProtocolPopulation.WRITE) {
                     protocols.srt = {
                         name: 'Secure Reliable Transport (SRT)',
-                        url: String(url) + `?streamid={{mode}}:${lease.path}:${lease.stream_user}}:${lease.stream_pass}`
-                    }
+                        url: String(url) + `?streamid={{mode}}:${lease.path}:${lease.stream_user}}:${lease.stream_pass}`,
+                    };
                 } else {
                     protocols.srt = {
                         name: 'Secure Reliable Transport (SRT)',
-                        url: String(url) + `?streamid={{mode}}:${lease.path}:{{username}}:{{password}}`
-                    }
+                        url: String(url) + `?streamid={{mode}}:${lease.path}:{{username}}:{{password}}`,
+                    };
                 }
             } else {
                 protocols.srt = {
                     name: 'Secure Reliable Transport (SRT)',
-                    url: String(url) + `?streamid={{mode}}:${lease.path}`
-                }
+                    url: String(url) + `?streamid={{mode}}:${lease.path}`,
+                };
             }
         }
 
         if (c.config && c.config.hls) {
             // Format: http://localhost:9997/mystream/index.m3u8 - Proxied
             const url = new URL(`/stream/${lease.path}/index.m3u8`, c.external);
-            url.port = '9997'
+            url.port = '9997';
 
             if (lease.stream_user && lease.read_user) {
                 if (populated === ProtocolPopulation.READ && lease.read_user && lease.read_pass) {
-                    const hlsurl = new URL(String(url))
+                    const hlsurl = new URL(String(url));
                     hlsurl.username = lease.read_user;
                     hlsurl.password = lease.read_pass;
 
                     protocols.hls = {
                         name: 'HTTP Live Streaming (HLS)',
-                        url: String(hlsurl)
-                    }
+                        url: String(hlsurl),
+                    };
                 } else if (populated === ProtocolPopulation.WRITE && lease.stream_user && lease.stream_pass) {
-                    const hlsurl = new URL(String(url))
+                    const hlsurl = new URL(String(url));
                     hlsurl.username = lease.stream_user;
                     hlsurl.password = lease.stream_pass;
 
                     protocols.hls = {
                         name: 'HTTP Live Streaming (HLS)',
-                        url: String(hlsurl)
-                    }
+                        url: String(hlsurl),
+                    };
                 } else {
-                    const hlsurl = new URL(String(url))
+                    const hlsurl = new URL(String(url));
                     hlsurl.username = 'username';
                     hlsurl.password = 'password';
 
                     protocols.hls = {
                         name: 'HTTP Live Streaming (HLS)',
-                        url: String(hlsurl).replace(/username:password/, '{{username}}:{{password}}')
-                    }
+                        url: String(hlsurl).replace(/username:password/, '{{username}}:{{password}}'),
+                    };
                 }
             } else {
                 protocols.hls = {
                     name: 'HTTP Live Streaming (HLS)',
-                    url: String(url)
-                }
+                    url: String(url),
+                };
             }
         }
 
@@ -397,8 +402,8 @@ export default class VideoServiceControl {
 
             protocols.webrtc = {
                 name: 'Web Real-Time Communication (WebRTC)',
-                url: String(url)
-            }
+                url: String(url),
+            };
         }
 
         return protocols;
@@ -407,7 +412,7 @@ export default class VideoServiceControl {
     async updateSecure(
         lease: Static<typeof VideoLeaseResponse>,
         secure: boolean,
-        rotate?: boolean
+        rotate?: boolean,
     ): Promise<void> {
         const video = await this.settings();
 
@@ -430,7 +435,7 @@ export default class VideoServiceControl {
                 stream_user: null,
                 stream_pass: null,
                 read_user: null,
-                read_pass: null
+                read_pass: null,
             });
         }
     }
@@ -481,7 +486,7 @@ export default class VideoServiceControl {
             layer: opts.layer,
             share: opts.share,
             channel: opts.channel,
-            proxy: opts.proxy
+            proxy: opts.proxy,
         });
 
         await this.updateSecure(lease, opts.secure);
@@ -495,25 +500,25 @@ export default class VideoServiceControl {
             const auth = this.config.serverCert();
             const api = await TAKAPI.init(
                 new URL(String(this.config.server.api)),
-                new APIAuthCertificate(auth.cert, auth.key)
+                new APIAuthCertificate(auth.cert, auth.key),
             );
 
             try {
-                const protocols = await this.protocols(lease, ProtocolPopulation.READ)
+                const protocols = await this.protocols(lease, ProtocolPopulation.READ);
 
                 if (protocols.hls) {
                     await api.Video.create({
                         uuid: lease.path,
                         active: true,
                         alias: lease.name,
-                        groups: [ lease.channel! ],
+                        groups: [lease.channel!],
                         feeds: [{
                             uuid: lease.path,
                             active: true,
                             alias: lease.name,
                             url: protocols.hls.url,
-                        }]
-                    })
+                        }],
+                    });
                 } else {
                     throw new Err(400, null, 'Only HLS shared video streams are supported at this time');
                 }
@@ -524,11 +529,28 @@ export default class VideoServiceControl {
 
         if (lease.proxy) {
             try {
+                // Media server hostname is always trusted; operators may add additional
+                // trusted proxy source hostnames/origins via the media::proxy::allow config
+                const proxyAllow = [
+                    new URL(video.url!).hostname,
+                    ...(await this.config.models.Setting.typed('media::proxy::allow', [])).value,
+                ];
+
+                // Skip isSafeUrl check when StackName=test (test mode)
+                if (process.env.StackName !== 'test') {
+                    const { safe, reason } = await isSafeUrl(lease.proxy, {
+                        allow: proxyAllow,
+                    });
+                    if (!safe) throw new Err(400, null, `Blocked URL: ${reason}`);
+                }
+
                 const proxy = new URL(lease.proxy);
 
                 // Check for HLS Errors
                 if (['http:', 'https:'].includes(proxy.protocol)) {
-                    const res = await fetch(proxy);
+                    const res = await fetch(proxy, {
+                        safeUrlAllow: proxyAllow,
+                    });
 
                     if (res.status === 404) {
                         throw new Err(400, null, 'External Video Server reports Video Stream not found');
@@ -539,14 +561,15 @@ export default class VideoServiceControl {
                     const res = await fetch(url, {
                         method: 'POST',
                         headers: Object.fromEntries(headers.entries()),
+                        safeUrlAllow: [new URL(video.url!).hostname],
                         body: JSON.stringify({
                             name: lease.path,
                             source: lease.proxy,
                             record: lease.recording,
-                        })
-                    })
+                        }),
+                    });
 
-                    if (!res.ok) throw new Err(500, null, await res.text())
+                    if (!res.ok) throw new Err(500, null, await res.text());
                 }
             } catch (err) {
                 if (err instanceof Err) {
@@ -562,13 +585,14 @@ export default class VideoServiceControl {
             const res = await fetch(url, {
                 method: 'POST',
                 headers: Object.fromEntries(headers.entries()),
+                safeUrlAllow: [new URL(video.url!).hostname],
                 body: JSON.stringify({
                     name: lease.path,
                     record: lease.recording,
-                })
-            })
+                }),
+            });
 
-            if (!res.ok) throw new Err(500, null, await res.text())
+            if (!res.ok) throw new Err(500, null, await res.text());
         }
 
         return lease;
@@ -587,10 +611,10 @@ export default class VideoServiceControl {
     async from(
         id: number | string,
         opts: {
-            connection?: number
-            username?: string
-            admin: boolean
-        }
+            connection?: number;
+            username?: string;
+            admin: boolean;
+        },
     ): Promise<Static<typeof VideoLeaseResponse>> {
         let lease;
 
@@ -615,7 +639,7 @@ export default class VideoServiceControl {
                 const profile = await this.config.models.Profile.from(opts.username);
                 const api = await TAKAPI.init(new URL(String(this.config.server.api)), new APIAuthCertificate(profile.auth.cert, profile.auth.key));
                 const groups = (await api.Group.list({ useCache: true }))
-                    .data.map((group) => group.name);
+                    .data.map(group => group.name);
 
                 if (lease.username !== opts.username && (!lease.share || !lease.channel || !groups.includes(lease.channel))) {
                     throw new Err(400, null, 'You can only access a lease you created or that is assigned to a channel you are in');
@@ -631,24 +655,24 @@ export default class VideoServiceControl {
     async commit(
         leaseid: number,
         body: {
-            name?: string,
-            channel?: string | null,
-            share?: boolean,
-            secure?: boolean,
-            secure_rotate?: boolean
-            expiration?: string | null,
-            recording?: boolean,
-            publish?: boolean,
+            name?: string;
+            channel?: string | null;
+            share?: boolean;
+            secure?: boolean;
+            secure_rotate?: boolean;
+            expiration?: string | null;
+            recording?: boolean;
+            publish?: boolean;
             source_id: string | null | undefined;
-            source_type?: VideoLease_SourceType,
-            source_model?: string,
-            proxy?: string | null,
+            source_type?: VideoLease_SourceType;
+            source_model?: string;
+            proxy?: string | null;
         },
         opts: {
             connection?: number;
             username?: string;
             admin: boolean;
-        }
+        },
     ): Promise<Static<typeof VideoLeaseResponse>> {
         const video = await this.settings();
         if (!video.configured) throw new Err(400, null, 'Media Integration is not configured');
@@ -684,7 +708,7 @@ export default class VideoServiceControl {
             const auth = this.config.serverCert();
             const api = await TAKAPI.init(
                 new URL(String(this.config.server.api)),
-                new APIAuthCertificate(auth.cert, auth.key)
+                new APIAuthCertificate(auth.cert, auth.key),
             );
 
             try {
@@ -695,21 +719,21 @@ export default class VideoServiceControl {
 
             // We can't change channels so just delete and recreate
             try {
-                const protocols = await this.protocols(lease, ProtocolPopulation.READ)
+                const protocols = await this.protocols(lease, ProtocolPopulation.READ);
 
                 if (protocols.hls) {
                     await api.Video.create({
                         uuid: lease.path,
                         active: true,
                         alias: lease.name,
-                        groups: [ lease.channel! ],
+                        groups: [lease.channel!],
                         feeds: [{
                             uuid: lease.path,
                             active: true,
                             alias: lease.name,
                             url: protocols.hls.url,
-                        }]
-                    })
+                        }],
+                    });
                 } else {
                     throw new Err(400, null, 'Only HLS shared video streams are supported at this time');
                 }
@@ -732,14 +756,15 @@ export default class VideoServiceControl {
             const res = await fetch(url, {
                 method: 'PATCH',
                 headers: Object.fromEntries(headers.entries()),
+                safeUrlAllow: [new URL(video.url!).hostname],
                 body: JSON.stringify({
                     name: lease.path,
                     source: lease.proxy,
                     record: lease.recording,
                 }),
-            })
+            });
 
-            if (!res.ok) throw new Err(500, null, await res.text())
+            if (!res.ok) throw new Err(500, null, await res.text());
         } catch (err) {
             if (err instanceof Err && err.status === 404) {
                 const url = new URL(`/path`, video.url);
@@ -751,14 +776,15 @@ export default class VideoServiceControl {
                 const res = await fetch(url, {
                     method: 'POST',
                     headers: Object.fromEntries(headers.entries()),
+                    safeUrlAllow: [new URL(video.url!).hostname],
                     body: JSON.stringify({
                         name: lease.path,
                         source: lease.proxy,
                         record: lease.recording,
                     }),
-                })
+                });
 
-                if (!res.ok) throw new Err(500, null, await res.text())
+                if (!res.ok) throw new Err(500, null, await res.text());
             } else {
                 throw err;
             }
@@ -802,6 +828,7 @@ export default class VideoServiceControl {
         const res = await fetch(url, {
             method: 'GET',
             headers: Object.fromEntries(headers.entries()),
+            safeUrlAllow: [new URL(video.url!).hostname],
         });
 
         if (res.ok) {
@@ -823,6 +850,7 @@ export default class VideoServiceControl {
         const res = await fetch(url, {
             method: 'GET',
             headers: Object.fromEntries(headers.entries()),
+            safeUrlAllow: [new URL(video.url!).hostname],
         });
 
         if (res.ok) {
@@ -861,7 +889,7 @@ export default class VideoServiceControl {
 
     async hlsUrlForPath(pathName: string): Promise<string> {
         const video = await this.settings();
-        if (!video.configured) throw new Err(400, null, 'Media Integration is not configured');
+        if (!video.configured || !video.url) throw new Err(400, null, 'Media Integration is not configured');
         const url = new URL(video.url);
         url.port = '9997';
         url.pathname = `/stream/${pathName}/index.m3u8`;
@@ -934,13 +962,13 @@ export default class VideoServiceControl {
             username?: string;
             connection?: number;
             admin: boolean;
-        }
+        },
     ): Promise<void> {
         const video = await this.settings();
 
         if (!opts.username && !opts.connection) {
             throw new Err(400, null, 'Either connection or username config must be provided');
-        } else if (opts.username && opts.connection)  {
+        } else if (opts.username && opts.connection) {
             throw new Err(400, null, 'connection and username cannot both be provided');
         }
 
@@ -952,7 +980,7 @@ export default class VideoServiceControl {
 
         if (opts.connection && lease.connection !== opts.connection) {
             throw new Err(400, null, `Lease does not belong to connection ${opts.connection}`);
-        } else if (opts.username && lease.username !== opts.username) {
+        } else if (!opts.admin && opts.username && lease.username !== opts.username) {
             throw new Err(400, null, `Lease does not belong to user ${opts.username}`);
         }
 
@@ -964,13 +992,14 @@ export default class VideoServiceControl {
         await fetch(url, {
             method: 'DELETE',
             headers: Object.fromEntries(headers.entries()),
-        })
+            safeUrlAllow: [new URL(video.url!).hostname],
+        });
 
         try {
             const auth = this.config.serverCert();
             const api = await TAKAPI.init(
                 new URL(String(this.config.server.api)),
-                new APIAuthCertificate(auth.cert, auth.key)
+                new APIAuthCertificate(auth.cert, auth.key),
             );
 
             await api.Video.delete(lease.path);

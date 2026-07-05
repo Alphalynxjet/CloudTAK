@@ -1,4 +1,4 @@
-import { Static, Type } from '@sinclair/typebox'
+import { Static, Type } from '@sinclair/typebox';
 import sleep from '../lib/sleep.js';
 import Schema from '@openaddresses/batch-schema';
 import Err from '@openaddresses/batch-error';
@@ -43,7 +43,7 @@ export default async function router(schema: Schema, config: Config) {
         name: 'Redeploy Layers',
         group: 'LayerAdmin',
         description: 'Redeploy all Layers with latest CloudFormation output',
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -58,16 +58,16 @@ export default async function router(schema: Schema, config: Config) {
                     try {
                         await deployLayer(layer);
 
-                        await sleep(50) //Otherwise AWS will throw Throttling exceptions
+                        await sleep(50); // Otherwise AWS will throw Throttling exceptions
                     } catch (err) {
                         console.error(err);
                     }
                 }
-            } while (list.items.length)
+            } while (list.items.length);
 
             res.json({
                 status: 200,
-                message: 'Layers Redeploying'
+                message: 'Layers Redeploying',
             });
         } catch (err) {
             Err.respond(err, res);
@@ -78,7 +78,7 @@ export default async function router(schema: Schema, config: Config) {
         name: 'Layer Update Management',
         group: 'LayerAdmin',
         description: 'List all layers and whether a newer task version is available',
-        res: LayerUpdateManagementListResponse
+        res: LayerUpdateManagementListResponse,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -87,7 +87,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 total: items.length,
-                items
+                items,
             });
         } catch (err) {
             Err.respond(err, res);
@@ -99,22 +99,19 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Layer',
         description: 'List layers',
         params: Type.Object({
-            connectionid: Type.Union([
-                Type.Literal('template'),
-                Type.Integer({ minimum: 1 })
-            ])
+            connectionid: Type.Integer({ minimum: 0 }),
         }),
         query: Type.Object({
             alarms: Type.Boolean({
                 default: false,
-                description: 'Get Live Alarm state from CloudWatch'
+                description: 'Get Live Alarm state from CloudWatch',
             }),
             limit: Default.Limit,
             page: Default.Page,
             order: Default.Order,
             sort: Type.String({
                 default: 'created',
-                enum: Object.keys(Layer)
+                enum: Object.keys(Layer),
             }),
             filter: Default.Filter,
             data: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -127,14 +124,14 @@ export default async function router(schema: Schema, config: Config) {
                 alarm: Type.Integer(),
                 unknown: Type.Integer(),
             }),
-            items: Type.Array(LayerResponse)
-        })
+            items: Type.Array(LayerResponse),
+        }),
     }, async (req, res) => {
         try {
-            const resources = [{ access: AuthResourceAccess.CONNECTION, id: req.params.connectionid }]
+            const resources = [{ access: AuthResourceAccess.CONNECTION, id: req.params.connectionid }];
 
-            if (req.params.connectionid === 'template') {
-                await Auth.is_auth(config, req, { resources });
+            if (req.params.connectionid === 0) {
+                await Auth.as_user(config, req, { admin: true });
             } else {
                 const { connection } = await Auth.is_connection(config, req, { resources }, req.params.connectionid);
                 if (connection.readonly) throw new Err(400, null, 'Connection is Read-Only mode');
@@ -147,9 +144,9 @@ export default async function router(schema: Schema, config: Config) {
                 sort: req.query.sort,
                 where: sql`
                     layers.name ~* ${req.query.filter}
-                    AND connection = ${Param(req.params.connectionid === 'template' ? null : req.params.connectionid)}
+                    AND connection = ${Param(req.params.connectionid === 0 ? null : req.params.connectionid)}
                     AND (${Param(req.query.data)}::BIGINT IS NULL OR ${Param(req.query.data)}::BIGINT = layers_incoming.data)
-                `
+                `,
             });
 
             let alarms = new Map();
@@ -174,9 +171,9 @@ export default async function router(schema: Schema, config: Config) {
                 items: list.items.map((layer) => {
                     return {
                         status: (config.StackName !== 'test' && req.query.alarms) ? (alarms.get(layer.id) || 'unknown') : 'unknown',
-                        ...layer
-                    }
-                })
+                        ...layer,
+                    };
+                }),
             });
         } catch (err) {
             Err.respond(err, res);
@@ -190,11 +187,11 @@ export default async function router(schema: Schema, config: Config) {
         query: Type.Object({
             alarms: Type.Boolean({
                 default: false,
-                description: 'Get Live Alarm state from CloudWatch'
+                description: 'Get Live Alarm state from CloudWatch',
             }),
         }),
         params: Type.Object({
-            connectionid: Type.Integer({ minimum: 1 })
+            connectionid: Type.Integer({ minimum: 1 }),
         }),
         body: Type.Object({
             name: Default.NameField,
@@ -204,19 +201,19 @@ export default async function router(schema: Schema, config: Config) {
             enabled: Type.Optional(Type.Boolean()),
             logging: Type.Boolean({
                 default: true,
-                description: 'Enable Logging for this Layer'
+                description: 'Enable Logging for this Layer',
             }),
             memory: Type.Integer({
                 default: 256,
                 description: 'Memory in MB for this Layer',
                 minimum: 128,
-                maximum: 10240
+                maximum: 10240,
             }),
             timeout: Type.Integer({
                 default: 120,
                 description: 'Timeout in seconds for this Layer',
                 minimum: 1,
-                maximum: 900
+                maximum: 900,
             }),
 
             alarm_period: Type.Optional(Type.Integer()),
@@ -224,11 +221,11 @@ export default async function router(schema: Schema, config: Config) {
             alarm_points: Type.Optional(Type.Integer()),
             protected: Type.Boolean({ default: false }),
         }),
-        res: LayerResponse
+        res: LayerResponse,
     }, async (req, res) => {
         try {
             const { connection, auth } = await Auth.is_connection(config, req, {
-                resources: [{ access: AuthResourceAccess.CONNECTION, id: req.params.connectionid }]
+                resources: [{ access: AuthResourceAccess.CONNECTION, id: req.params.connectionid }],
             }, req.params.connectionid);
 
             if (connection.readonly) throw new Err(400, null, 'Connection is Read-Only mode');
@@ -236,9 +233,9 @@ export default async function router(schema: Schema, config: Config) {
             const layer = await layerControl.generate({
                 ...req.body,
                 connection: req.params.connectionid,
-                username: auth instanceof AuthUser ? auth.email : null
+                username: auth instanceof AuthUser ? auth.email : null,
             }, {
-                alarms: req.query.alarms
+                alarms: req.query.alarms,
             });
 
             res.json(layer);
@@ -252,8 +249,8 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Layer',
         description: 'Register a new incoming layer config',
         params: Type.Object({
-            connectionid: Type.Integer({ minimum: 1 }),
-            layerid: Type.Integer({ minimum: 1 })
+            connectionid: Type.Integer({ minimum: 0 }),
+            layerid: Type.Integer({ minimum: 1 }),
         }),
         body: Type.Object({
             webhooks: Type.Optional(Type.Boolean()),
@@ -264,17 +261,27 @@ export default async function router(schema: Schema, config: Config) {
             styles: Type.Optional(StyleContainer),
             config: Type.Optional(Layer_Config),
         }),
-        res: LayerIncomingResponse
+        res: LayerIncomingResponse,
     }, async (req, res) => {
         try {
-            const { connection } = await Auth.is_connection(config, req, {
-                resources: [
-                    { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
-                    { access: AuthResourceAccess.LAYER, id: req.params.layerid }
-                ]
-            }, req.params.connectionid);
-
-            let layer = await layerControl.from(connection, req.params.layerid);
+            let connection = null;
+            let layer;
+            if (req.params.connectionid === 0) {
+                await Auth.as_user(config, req, { admin: true });
+                layer = await layerControl.from(null, req.params.layerid);
+                if (layer.connection !== null) {
+                    throw new Err(400, null, 'Layer is not an admin layer');
+                }
+            } else {
+                const auth = await Auth.is_connection(config, req, {
+                    resources: [
+                        { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
+                        { access: AuthResourceAccess.LAYER, id: req.params.layerid },
+                    ],
+                }, req.params.connectionid);
+                connection = auth.connection;
+                layer = await layerControl.from(connection, req.params.layerid);
+            }
 
             if (req.body.styles) {
                 await Style.validate(req.body.styles);
@@ -287,9 +294,9 @@ export default async function router(schema: Schema, config: Config) {
             if (req.body.data) {
                 const data = await config.models.Data.from(req.body.data);
                 if (data.mission_diff && parseInt(String(await config.models.LayerIncoming.count({
-                    where: eq(LayerIncoming.data, req.body.data)
+                    where: eq(LayerIncoming.data, req.body.data),
                 }))) + 1 > MAX_LAYERS_IN_DATA_SYNC) {
-                    throw new Err(400, null, `Only ${MAX_LAYERS_IN_DATA_SYNC} layers can be added to a DataSync with Mission Diff Enabled`)
+                    throw new Err(400, null, `Only ${MAX_LAYERS_IN_DATA_SYNC} layers can be added to a DataSync with Mission Diff Enabled`);
                 }
 
                 if (data.connection !== req.params.connectionid) {
@@ -299,7 +306,7 @@ export default async function router(schema: Schema, config: Config) {
 
             const incoming = await config.models.LayerIncoming.generate({
                 layer: layer.id,
-                ...req.body
+                ...req.body,
             });
 
             layer = await layerControl.from(connection, req.params.layerid);
@@ -330,10 +337,7 @@ export default async function router(schema: Schema, config: Config) {
                 }
             }
 
-            res.json({
-                ...incoming,
-                groups: (incoming.styles.marti?.dest || []).filter((d) => d.group).map((d) => d.group as string)
-            });
+            res.json(incoming);
         } catch (err) {
             Err.respond(err, res);
         }
@@ -357,14 +361,14 @@ export default async function router(schema: Schema, config: Config) {
             environment: Type.Optional(Type.Any()),
             config: Type.Optional(Layer_Config),
         }),
-        res: LayerIncomingResponse
+        res: LayerIncomingResponse,
     }, async (req, res) => {
         try {
             const { connection } = await Auth.is_connection(config, req, {
                 resources: [
                     { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
-                    { access: AuthResourceAccess.LAYER, id: req.params.layerid }
-                ]
+                    { access: AuthResourceAccess.LAYER, id: req.params.layerid },
+                ],
             }, req.params.connectionid);
 
             const layer = await layerControl.from(connection, req.params.layerid);
@@ -381,9 +385,9 @@ export default async function router(schema: Schema, config: Config) {
                 const modifier = layer.incoming.data === req.body.data ? 0 : 1;
 
                 if (data.mission_diff && parseInt(String(await config.models.LayerIncoming.count({
-                    where: eq(LayerIncoming.data, req.body.data)
+                    where: eq(LayerIncoming.data, req.body.data),
                 }))) + modifier > MAX_LAYERS_IN_DATA_SYNC) {
-                    throw new Err(400, null, `Only ${MAX_LAYERS_IN_DATA_SYNC} layers can be added to a DataSync with Mission Diff Enabled`)
+                    throw new Err(400, null, `Only ${MAX_LAYERS_IN_DATA_SYNC} layers can be added to a DataSync with Mission Diff Enabled`);
                 }
 
                 if (data.connection !== req.params.connectionid) {
@@ -409,28 +413,28 @@ export default async function router(schema: Schema, config: Config) {
 
             let changed = false;
             // Avoid Updating CF unless necessary as it blocks further updates until deployed
-            for (const prop of [ 'cron', 'webhooks' ]) {
+            for (const prop of ['cron', 'webhooks']) {
                 // @ts-expect-error Doesn't like indexed values
                 if (req.body[prop] !== undefined && req.body[prop] !== layer[prop]) changed = true;
             }
 
             if (changed) {
                 const status = (await CloudFormation.status(config, req.params.layerid)).status;
-                if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before updating')
+                if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before updating');
             }
 
             const updated: InferInsertModel<typeof LayerIncoming> = {
                 // @ts-expect-error Inference expects a Date and not an SQL blob
                 updated: sql`Now()`,
-                ...req.body
-            }
+                ...req.body,
+            };
 
             // Ephemeral storage stores cached password, if the env changes, the ephemeral storage should be cleared
             if (req.body.environment) {
                 updated.ephemeral = {};
             }
 
-            const incoming = await config.models.LayerIncoming.commit(layer.id, updated)
+            const incoming = await config.models.LayerIncoming.commit(layer.id, updated);
 
             if (changed) {
                 try {
@@ -461,13 +465,10 @@ export default async function router(schema: Schema, config: Config) {
             }
 
             if (req.body.environment) {
-                await Lambda.invoke(config, layer.id, 'environment:incoming')
+                await Lambda.invoke(config, layer.id, 'environment:incoming');
             }
 
-            res.json({
-                ...incoming,
-                groups: (incoming.styles.marti?.dest || []).filter((d) => d.group).map((d) => d.group as string)
-            });
+            res.json(incoming);
         } catch (err) {
             Err.respond(err, res);
         }
@@ -478,27 +479,37 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Layer',
         description: 'Remove an incoming config from a layer',
         params: Type.Object({
-            connectionid: Type.Integer({ minimum: 1 }),
-            layerid: Type.Integer({ minimum: 1 })
+            connectionid: Type.Integer({ minimum: 0 }),
+            layerid: Type.Integer({ minimum: 1 }),
         }),
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
-            const { connection } = await Auth.is_connection(config, req, {
-                resources: [
-                    { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
-                    { access: AuthResourceAccess.LAYER, id: req.params.layerid }
-                ]
-            }, req.params.connectionid);
-
-            let layer = await layerControl.from(connection, req.params.layerid);
+            let connection = null;
+            let layer;
+            if (req.params.connectionid === 0) {
+                await Auth.as_user(config, req, { admin: true });
+                layer = await layerControl.from(null, req.params.layerid);
+                if (layer.connection !== null) {
+                    throw new Err(400, null, 'Layer is not an admin layer');
+                }
+            } else {
+                const auth = await Auth.is_connection(config, req, {
+                    resources: [
+                        { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
+                        { access: AuthResourceAccess.LAYER, id: req.params.layerid },
+                    ],
+                }, req.params.connectionid);
+                connection = auth.connection;
+                layer = await layerControl.from(connection, req.params.layerid);
+            }
 
             if (!layer.incoming) {
                 throw new Err(400, null, 'Layer does not have an incoming configuration');
             }
 
             const status = (await CloudFormation.status(config, req.params.layerid)).status;
-            if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before deleting')
+            if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before deleting');
 
             await config.models.LayerIncoming.delete(layer.id);
 
@@ -512,7 +523,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 status: 200,
-                message: 'Incoming Layer Config Deleted'
+                message: 'Incoming Layer Config Deleted',
             });
         } catch (err) {
             Err.respond(err, res);
@@ -522,25 +533,35 @@ export default async function router(schema: Schema, config: Config) {
     await schema.post('/connection/:connectionid/layer/:layerid/outgoing', {
         name: 'Create Outgoing',
         group: 'Layer',
-        description: 'Register a new incoming layer config',
+        description: 'Register a new outgoing layer config',
         params: Type.Object({
-            connectionid: Type.Integer({ minimum: 1 }),
-            layerid: Type.Integer({ minimum: 1 })
+            connectionid: Type.Integer({ minimum: 0 }),
+            layerid: Type.Integer({ minimum: 1 }),
         }),
         body: Type.Object({
-            filters: Type.Optional(FilterContainer)
+            filters: Type.Optional(FilterContainer),
         }),
-        res: LayerOutgoingResponse
+        res: LayerOutgoingResponse,
     }, async (req, res) => {
         try {
-            const { connection } = await Auth.is_connection(config, req, {
-                resources: [
-                    { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
-                    { access: AuthResourceAccess.LAYER, id: req.params.layerid }
-                ]
-            }, req.params.connectionid);
-
-            let layer = await layerControl.from(connection, req.params.layerid);
+            let connection = null;
+            let layer;
+            if (req.params.connectionid === 0) {
+                await Auth.as_user(config, req, { admin: true });
+                layer = await layerControl.from(null, req.params.layerid);
+                if (layer.connection !== null) {
+                    throw new Err(400, null, 'Layer is not an admin layer');
+                }
+            } else {
+                const auth = await Auth.is_connection(config, req, {
+                    resources: [
+                        { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
+                        { access: AuthResourceAccess.LAYER, id: req.params.layerid },
+                    ],
+                }, req.params.connectionid);
+                connection = auth.connection;
+                layer = await layerControl.from(connection, req.params.layerid);
+            }
 
             if (req.body.filters) {
                 await Filter.validate(req.body.filters);
@@ -548,7 +569,7 @@ export default async function router(schema: Schema, config: Config) {
 
             const incoming = await config.models.LayerOutgoing.generate({
                 layer: layer.id,
-                ...req.body
+                ...req.body,
             });
 
             layer = await layerControl.from(connection, req.params.layerid);
@@ -577,14 +598,14 @@ export default async function router(schema: Schema, config: Config) {
             environment: Type.Optional(Type.Any()),
             filters: Type.Optional(FilterContainer),
         }),
-        res: LayerOutgoingResponse
+        res: LayerOutgoingResponse,
     }, async (req, res) => {
         try {
             const { connection } = await Auth.is_connection(config, req, {
                 resources: [
                     { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
-                    { access: AuthResourceAccess.LAYER, id: req.params.layerid }
-                ]
+                    { access: AuthResourceAccess.LAYER, id: req.params.layerid },
+                ],
             }, req.params.connectionid);
 
             const layer = await layerControl.from(connection, req.params.layerid);
@@ -596,8 +617,8 @@ export default async function router(schema: Schema, config: Config) {
             const updated: InferInsertModel<typeof LayerOutgoing> = {
                 // @ts-expect-error Inference expects a Date and not an SQL blob
                 updated: sql`Now()`,
-                ...req.body
-            }
+                ...req.body,
+            };
 
             // Ephemeral storage stores cached password, if the env changes, the ephemeral storage should be cleared
             if (req.body.environment) {
@@ -611,7 +632,7 @@ export default async function router(schema: Schema, config: Config) {
             const outgoing = await config.models.LayerOutgoing.commit(layer.id, updated);
 
             if (req.body.environment) {
-                await Lambda.invoke(config, layer.id, 'environment:outgoing')
+                await Lambda.invoke(config, layer.id, 'environment:outgoing');
             }
 
             res.json(outgoing);
@@ -625,27 +646,37 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Layer',
         description: 'Remove an outgoing config from a layer',
         params: Type.Object({
-            connectionid: Type.Integer({ minimum: 1 }),
-            layerid: Type.Integer({ minimum: 1 })
+            connectionid: Type.Integer({ minimum: 0 }),
+            layerid: Type.Integer({ minimum: 1 }),
         }),
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
-            const { connection } = await Auth.is_connection(config, req, {
-                resources: [
-                    { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
-                    { access: AuthResourceAccess.LAYER, id: req.params.layerid }
-                ]
-            }, req.params.connectionid);
-
-            let layer = await layerControl.from(connection, req.params.layerid);
+            let connection = null;
+            let layer;
+            if (req.params.connectionid === 0) {
+                await Auth.as_user(config, req, { admin: true });
+                layer = await layerControl.from(null, req.params.layerid);
+                if (layer.connection !== null) {
+                    throw new Err(400, null, 'Layer is not an admin layer');
+                }
+            } else {
+                const auth = await Auth.is_connection(config, req, {
+                    resources: [
+                        { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
+                        { access: AuthResourceAccess.LAYER, id: req.params.layerid },
+                    ],
+                }, req.params.connectionid);
+                connection = auth.connection;
+                layer = await layerControl.from(connection, req.params.layerid);
+            }
 
             if (!layer.outgoing) {
                 throw new Err(400, null, 'Layer does not have an outgoing configuration');
             }
 
             const status = (await CloudFormation.status(config, req.params.layerid)).status;
-            if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before deleting')
+            if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before deleting');
 
             await config.models.LayerOutgoing.delete(layer.id);
 
@@ -659,7 +690,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 status: 200,
-                message: 'Outgoing Layer Config Deleted'
+                message: 'Outgoing Layer Config Deleted',
             });
         } catch (err) {
             Err.respond(err, res);
@@ -673,14 +704,11 @@ export default async function router(schema: Schema, config: Config) {
         query: Type.Object({
             alarms: Type.Boolean({
                 default: false,
-                description: 'Get Live Alarm state from CloudWatch'
+                description: 'Get Live Alarm state from CloudWatch',
             }),
         }),
         params: Type.Object({
-            connectionid: Type.Union([
-                Type.Literal('template'),
-                Type.Integer({ minimum: 1 })
-            ]),
+            connectionid: Type.Integer({ minimum: 0 }),
             layerid: Type.Integer({ minimum: 1 }),
         }),
         body: Type.Object({
@@ -690,12 +718,12 @@ export default async function router(schema: Schema, config: Config) {
             memory: Type.Optional(Type.Integer({
                 description: 'Memory in MB for this Layer',
                 minimum: 128,
-                maximum: 10240
+                maximum: 10240,
             })),
             timeout: Type.Optional(Type.Integer({
                 description: 'Timeout in seconds for this Layer',
                 minimum: 1,
-                maximum: 900
+                maximum: 900,
             })),
             enabled: Type.Optional(Type.Boolean()),
             protected: Type.Optional(Type.Boolean()),
@@ -706,21 +734,21 @@ export default async function router(schema: Schema, config: Config) {
             alarm_evals: Type.Optional(Type.Integer()),
             alarm_points: Type.Optional(Type.Integer()),
         }),
-        res: LayerResponse
+        res: LayerResponse,
     }, async (req, res) => {
         try {
             const resources = [
                 { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
-                { access: AuthResourceAccess.LAYER, id: req.params.layerid }
+                { access: AuthResourceAccess.LAYER, id: req.params.layerid },
             ];
 
             let connection = null;
             let layer;
-            if (req.params.connectionid === 'template') {
+            if (req.params.connectionid === 0) {
                 await Auth.as_user(config, req, { admin: true });
                 layer = await layerControl.from(null, req.params.layerid);
                 if (layer.connection !== null) {
-                    throw new Err(400, null, 'Layer is not a template layer');
+                    throw new Err(400, null, 'Layer is not an admin layer');
                 }
             } else {
                 const auth = await Auth.is_connection(config, req, { resources }, req.params.connectionid);
@@ -730,7 +758,7 @@ export default async function router(schema: Schema, config: Config) {
 
             let changed = false;
             // Avoid Updating CF unless necessary as it blocks further updates until deployed
-            for (const prop of [ 'task', 'memory', 'timeout', 'enabled', 'priority', 'alarm_period', 'alarm_evals', 'alarm_points']) {
+            for (const prop of ['task', 'memory', 'timeout', 'enabled', 'priority', 'alarm_period', 'alarm_evals', 'alarm_points']) {
                 // @ts-expect-error Doesn't like indexed values
                 if (req.body[prop] !== undefined && req.body[prop] !== layer[prop]) changed = true;
             }
@@ -738,13 +766,13 @@ export default async function router(schema: Schema, config: Config) {
             if (changed) {
                 const status = (await CloudFormation.status(config, req.params.layerid)).status;
                 if (!status.endsWith('_COMPLETE')) {
-                    throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before updating')
+                    throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before updating');
                 }
             }
 
             await config.models.Layer.commit(layer.id, {
                 updated: sql`Now()`,
-                ...req.body
+                ...req.body,
             });
 
             layer = await layerControl.from(connection, req.params.layerid);
@@ -778,7 +806,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 status,
-                ...layer
+                ...layer,
             });
         } catch (err) {
             Err.respond(err, res);
@@ -792,39 +820,34 @@ export default async function router(schema: Schema, config: Config) {
         query: Type.Object({
             alarms: Type.Boolean({
                 default: false,
-                description: 'Get Live Alarm state from CloudWatch'
+                description: 'Get Live Alarm state from CloudWatch',
             }),
             token: Type.Optional(Type.String()),
             download: Type.Boolean({
                 default: false,
-                description: 'Download Layer as JSON file'
-            })
+                description: 'Download Layer as JSON file',
+            }),
         }),
         params: Type.Object({
-            connectionid: Type.Union([
-                Type.Literal('template'),
-                Type.Integer({ minimum: 1 })
-            ]),
+            connectionid: Type.Integer({ minimum: 0 }),
             layerid: Type.Integer({ minimum: 1 }),
         }),
-        res: LayerResponse
+        res: LayerResponse,
     }, async (req, res) => {
         try {
             const resources = [
                 { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
-                { access: AuthResourceAccess.LAYER, id: req.params.layerid }
+                { access: AuthResourceAccess.LAYER, id: req.params.layerid },
             ];
 
             let layer;
-            if (req.params.connectionid === 'template') {
-                await Auth.is_auth(config, req, {
-                    token: true, resources
-                });
+            if (req.params.connectionid === 0) {
+                await Auth.as_user(config, req, { admin: true, token: true });
 
                 layer = await layerControl.from(null, req.params.layerid);
             } else {
                 const { connection } = await Auth.is_connection(config, req, {
-                    token: true, resources
+                    token: true, resources,
                 }, req.params.connectionid);
 
                 if (connection.readonly) throw new Err(400, null, 'Connection is Read-Only mode');
@@ -851,7 +874,7 @@ export default async function router(schema: Schema, config: Config) {
             } else {
                 res.json({
                     status,
-                    ...layer
+                    ...layer,
                 });
             }
         } catch (err) {
@@ -864,22 +887,19 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Layer',
         description: 'Redeploy a specific Layer with latest CloudFormation output',
         params: Type.Object({
-            connectionid: Type.Union([
-                Type.Literal('template'),
-                Type.Integer({ minimum: 1 })
-            ]),
+            connectionid: Type.Integer({ minimum: 0 }),
             layerid: Type.Integer({ minimum: 1 }),
         }),
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
             const resources = [
-                { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid }
+                { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
             ];
 
             let layer;
-            if (req.params.connectionid === 'template') {
-                await Auth.is_auth(config, req, { resources });
+            if (req.params.connectionid === 0) {
+                await Auth.as_user(config, req, { admin: true });
 
                 layer = await layerControl.from(null, req.params.layerid);
             } else {
@@ -889,7 +909,7 @@ export default async function router(schema: Schema, config: Config) {
             }
 
             const status = (await CloudFormation.status(config, req.params.layerid)).status;
-            if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before updating')
+            if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before updating');
 
             try {
                 await deployLayer(layer);
@@ -899,7 +919,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 status: 200,
-                message: 'Layer Redeploying'
+                message: 'Layer Redeploying',
             });
         } catch (err) {
             Err.respond(err, res);
@@ -911,22 +931,19 @@ export default async function router(schema: Schema, config: Config) {
         group: 'Layer',
         description: 'Delete a layer',
         params: Type.Object({
-            connectionid: Type.Union([
-                Type.Literal('template'),
-                Type.Integer({ minimum: 1 })
-            ]),
+            connectionid: Type.Integer({ minimum: 0 }),
             layerid: Type.Integer({ minimum: 1 }),
         }),
-        res: StandardResponse
+        res: StandardResponse,
     }, async (req, res) => {
         try {
             const resources = [
-                { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid }
-            ]
+                { access: AuthResourceAccess.CONNECTION, id: req.params.connectionid },
+            ];
 
             let layer;
-            if (req.params.connectionid === 'template') {
-                await Auth.is_auth(config, req, { resources });
+            if (req.params.connectionid === 0) {
+                await Auth.as_user(config, req, { admin: true });
                 layer = await layerControl.from(null, req.params.layerid);
             } else {
                 const { connection } = await Auth.is_connection(config, req, { resources }, req.params.connectionid);
@@ -936,7 +953,7 @@ export default async function router(schema: Schema, config: Config) {
             if (layer.protected) throw new Err(400, null, 'Layer is protected and cannot be deleted');
 
             const status = (await CloudFormation.status(config, req.params.layerid)).status;
-            if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before deleting')
+            if (!status.endsWith('_COMPLETE')) throw new Err(400, null, 'Layer is still Deploying, Wait for Deploy to succeed before deleting');
 
             await CloudFormation.delete(config, layer.id);
 
@@ -954,7 +971,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json({
                 status: 200,
-                message: 'Layer Deleted'
+                message: 'Layer Deleted',
             });
         } catch (err) {
             Err.respond(err, res);

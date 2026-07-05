@@ -12,37 +12,10 @@ import { StyleSpecification, validateStyleMin } from '@maplibre/maplibre-gl-styl
 import pointOnFeature from '@turf/point-on-feature';
 import { bboxPolygon } from '@turf/bbox-polygon';
 import { Feature } from '@tak-ps/node-cot';
-import { MultiGeoJSONFeatureCollection, MultiGeoJSONFeature } from './types.js';
+import { MultiGeoJSONFeatureCollection, MultiGeoJSONFeature, TileJSON, TileJSON_VectorLayer } from './types.js';
 
 export const TileJSONActions = Type.Object({
-    feature: Type.Array(Type.Enum(Basemap_FeatureAction))
-});
-
-export const VectorLayer = Type.Object({
-    id: Type.String(),
-    fields: Type.Record(Type.String(), Type.String()),
-    minzoom: Type.Optional(Type.Integer()),
-    maxzoom: Type.Optional(Type.Integer()),
-    description: Type.Optional(Type.String())
-});
-
-export const TileJSONType = Type.Object({
-    tilejson: Type.Literal('3.0.0'),
-    version: Type.String(),
-    scheme: Type.Literal('xyz'),
-    name: Type.String(),
-    description: Type.String(),
-    attribution: Type.Optional(Type.String()),
-    // This is a custom attribute and not in the original TileJSON spec
-    tileSize: Type.Optional(Type.Integer()),
-    minzoom: Type.Integer(),
-    maxzoom: Type.Integer(),
-    tiles: Type.Array(Type.String()),
-    bounds: Type.Tuple([Type.Number(), Type.Number(), Type.Number(), Type.Number()]),
-    center: Type.Array(Type.Number()),
-    type: Type.String(),
-    format: Type.Optional(Type.String()),
-    vector_layers: Type.Optional(Type.Array(VectorLayer))
+    feature: Type.Array(Type.Enum(Basemap_FeatureAction)),
 });
 
 export interface TileJSONInterface {
@@ -57,7 +30,7 @@ export interface TileJSONInterface {
     version?: string;
     minzoom?: number;
     maxzoom?: number;
-    vector_layers?: Array<Static<typeof VectorLayer>>;
+    vector_layers?: Array<Static<typeof TileJSON_VectorLayer>>;
 }
 
 export interface TileOpts {
@@ -117,7 +90,7 @@ export class BasemapProtocol implements BasemapProtocolInterface {
             version: 8,
             glyphs: '/fonts/{fontstack}/{range}.pbf',
             sources: sources as StyleSpecification['sources'],
-            layers: layers as StyleSpecification['layers']
+            layers: layers as StyleSpecification['layers'],
         });
 
         if (errors.length) throw new Err(400, null, JSON.stringify(errors));
@@ -176,13 +149,13 @@ export class BasemapProtocol implements BasemapProtocolInterface {
      *
      * @param config - Basemap metadata
      */
-    static json(config: TileJSONInterface): Static<typeof TileJSONType> {
+    static json(config: TileJSONInterface): Static<typeof TileJSON> {
         const bounds = (config.bounds as [number, number, number, number]) || [-180, -90, 180, 90];
         const center = config.center || pointOnFeature(bboxPolygon(bounds as BBox)).geometry.coordinates;
         const type = config.type || 'raster';
         const isVectorType = type !== 'raster' && type !== 'raster-dem';
 
-        let vector_layers: Array<Static<typeof VectorLayer>> | undefined;
+        let vector_layers: Array<Static<typeof TileJSON_VectorLayer>> | undefined;
         if (isVectorType) {
             vector_layers = config.vector_layers
                 ? [...config.vector_layers]
@@ -203,7 +176,7 @@ export class BasemapProtocol implements BasemapProtocolInterface {
             minzoom: config.minzoom ?? 0,
             maxzoom: config.maxzoom ?? 16,
             tiles: [String(config.url)],
-            vector_layers
+            vector_layers,
         };
     }
 
@@ -231,7 +204,10 @@ export class BasemapProtocol implements BasemapProtocolInterface {
             let digit = 0;
             const mask = 1 << (i - 1);
             if ((x & mask) !== 0) digit++;
-            if ((y & mask) !== 0) { digit++; digit++; }
+            if ((y & mask) !== 0) {
+                digit++;
+                digit++;
+            }
             quadKey.push(digit);
         }
         return quadKey.join('');
@@ -243,7 +219,7 @@ export class BasemapProtocol implements BasemapProtocolInterface {
      */
     actions(): Static<typeof TileJSONActions> {
         return {
-            feature: []
+            feature: [],
         };
     }
 
@@ -264,7 +240,7 @@ export class BasemapProtocol implements BasemapProtocolInterface {
     async tile(
         z: number, x: number, y: number,
         res: Response,
-        opts?: TileOpts
+        opts?: TileOpts,
     ): Promise<void> {
         const headers: Record<string, string | undefined> = { ...opts?.headers };
         for (const key of Object.keys(headers)) {
@@ -298,9 +274,13 @@ export class BasemapProtocol implements BasemapProtocolInterface {
     protected async _tile(
         z: number, x: number, y: number,
         res: Response,
-        opts: Required<TileOpts>
+        opts: Required<TileOpts>,
     ): Promise<void> {
-        void z; void x; void y; void res; void opts;
+        void z;
+        void x;
+        void y;
+        void res;
+        void opts;
         throw new Err(501, null, 'Protocol does not implement tile()');
     }
 }

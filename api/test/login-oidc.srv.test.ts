@@ -14,12 +14,12 @@ test('PUT: api/config - enable OIDC enforcement', async () => {
         const res = await flight.fetch('/api/config', {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 'oidc::enabled': true,
                 'oidc::enforced': true,
-            }
+            },
         }, false);
 
         assert.equal(res.status, 200);
@@ -34,15 +34,15 @@ test('POST: api/login - rejected when OIDC enforced', async () => {
             method: 'POST',
             body: {
                 username: 'admin@example.com',
-                password: 'password123'
-            }
+                password: 'password123',
+            },
         }, false);
 
         assert.equal(res.status, 403);
         assert.deepEqual(res.body, {
             status: 403,
             message: 'Username/Password login is disabled - Please use SSO',
-            messages: []
+            messages: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -54,12 +54,12 @@ test('PUT: api/config - disable OIDC enforcement, keep enabled', async () => {
         const res = await flight.fetch('/api/config', {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 'oidc::enabled': true,
                 'oidc::enforced': false,
-            }
+            },
         }, false);
 
         assert.equal(res.status, 200);
@@ -73,16 +73,18 @@ test('POST: api/login - allowed when OIDC enabled but not enforced', async () =>
         const res = await flight.fetch('/api/login', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 username: 'admin@example.com',
-                password: 'password123'
-            }
+                password: 'password123',
+            },
         }, false);
 
         assert.ok(res.body.token);
         delete res.body.token;
+        assert.ok(res.body.session);
+        delete res.body.session;
 
         assert.deepEqual(res.body, {
             access: 'admin',

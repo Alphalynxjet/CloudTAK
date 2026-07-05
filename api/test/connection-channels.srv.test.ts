@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import Flight from './flight.js';
-import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const flight = new Flight();
 
@@ -28,7 +28,7 @@ test('GET: api/connection/1/channel', async () => {
                         type: 'SYSTEM',
                         bitpos: 187,
                         active: true,
-                        description: 'Description'
+                        description: 'Description',
                     }],
                 }));
                 response.end();
@@ -42,8 +42,8 @@ test('GET: api/connection/1/channel', async () => {
         const res = await flight.fetch('/api/connection/1/channel', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
@@ -56,8 +56,8 @@ test('GET: api/connection/1/channel', async () => {
                 type: 'SYSTEM',
                 bitpos: 187,
                 active: true,
-                description: 'Description'
-            }]
+                description: 'Description',
+            }],
         });
     } catch (err) {
         assert.ifError(err);
@@ -86,8 +86,8 @@ test('GET: api/connection/1/channel - Failure', async () => {
         const res = await flight.fetch('/api/connection/1/channel', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, false);
 
         assert.deepEqual(res.status, 500);

@@ -49,7 +49,7 @@ export default class SettingModel extends Modeler<typeof Setting> {
 
     async typed<K extends keyof FullConfigType>(
         key: K,
-        defaultValue?: FullConfigType[K]
+        defaultValue?: FullConfigType[K],
     ): Promise<{ key: K; value: FullConfigType[K] }> {
         const pgres = await this.pool
             .select({
@@ -73,7 +73,7 @@ export default class SettingModel extends Modeler<typeof Setting> {
 
         return {
             key,
-            value: coerceRawValue(key, pgres[0].value)
+            value: coerceRawValue(key, pgres[0].value),
         };
     }
 
@@ -86,7 +86,7 @@ export default class SettingModel extends Modeler<typeof Setting> {
             .from(Setting)
             .where(inArray(Setting.key, keys as string[]));
 
-        const found = new Map(pgres.map((r) => [r.key, r.value]));
+        const found = new Map(pgres.map(r => [r.key, r.value]));
 
         const result: Partial<Pick<FullConfigType, K>> = {};
         for (const key of keys) {
@@ -112,7 +112,7 @@ export default class SettingModel extends Modeler<typeof Setting> {
             .from(Setting)
             .where(inArray(Setting.key, keys as string[]));
 
-        const found = new Map(pgres.map((r) => [r.key, r.value]));
+        const found = new Map(pgres.map(r => [r.key, r.value]));
 
         const result = { ...defaults };
         for (const key of keys) {

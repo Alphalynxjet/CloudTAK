@@ -9,20 +9,20 @@ flight.init({ takserver: true });
 flight.takeoff();
 flight.user();
 
-const time = new Date('2025-03-04T22:54:15.447Z').toISOString()
+const time = new Date('2025-03-04T22:54:15.447Z').toISOString();
 
 test('GET: api/profile/feature', async () => {
     try {
         const res = await flight.fetch('/api/profile/feature', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
             total: 0,
-            items: []
+            items: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -34,7 +34,7 @@ test('PUT: api/profile/feature', async () => {
         const res = await flight.fetch('/api/profile/feature', {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 id: '123',
@@ -51,14 +51,14 @@ test('PUT: api/profile/feature', async () => {
                     center: [123.3223, 123.0002],
                     testprop: 1,
                     testnested: {
-                        deep: 1
-                    }
+                        deep: 1,
+                    },
                 },
                 geometry: {
                     type: 'Point',
-                    coordinates: [123.3223, 123.0002, 123]
-                }
-            }
+                    coordinates: [123.3223, 123.0002, 123],
+                },
+            },
         }, true);
 
         assert.deepEqual(res.body, {
@@ -77,8 +77,8 @@ test('PUT: api/profile/feature', async () => {
             },
             geometry: {
                 type: 'Point',
-                coordinates: [123.3223, 123.0002, 123]
-            }
+                coordinates: [123.3223, 123.0002, 123],
+            },
         });
     } catch (err) {
         assert.ifError(err);
@@ -90,8 +90,8 @@ test('GET: api/profile/feature', async () => {
         const res = await flight.fetch('/api/profile/feature', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
@@ -112,9 +112,9 @@ test('GET: api/profile/feature', async () => {
                 },
                 geometry: {
                     type: 'Point',
-                    coordinates: [123.3223, 123.0002, 123]
-                }
-            }]
+                    coordinates: [123.3223, 123.0002, 123],
+                },
+            }],
         });
     } catch (err) {
         assert.ifError(err);
@@ -126,7 +126,7 @@ test('PUT: api/profile/feature - UPSERT', async () => {
         const res = await flight.fetch('/api/profile/feature', {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 id: '123',
@@ -143,14 +143,14 @@ test('PUT: api/profile/feature - UPSERT', async () => {
                     center: [123.3223, 123.0002],
                     testprop: 1,
                     testnested: {
-                        deep: 1
-                    }
+                        deep: 1,
+                    },
                 },
                 geometry: {
                     type: 'Point',
-                    coordinates: [123.3223, 123.0002, 123]
-                }
-            }
+                    coordinates: [123.3223, 123.0002, 123],
+                },
+            },
         }, true);
 
         assert.deepEqual(res.body, {
@@ -169,8 +169,8 @@ test('PUT: api/profile/feature - UPSERT', async () => {
             },
             geometry: {
                 type: 'Point',
-                coordinates: [123.3223, 123.0002, 123]
-            }
+                coordinates: [123.3223, 123.0002, 123],
+            },
         });
     } catch (err) {
         assert.ifError(err);
@@ -182,8 +182,8 @@ test('GET: api/profile/feature', async () => {
         const res = await flight.fetch('/api/profile/feature', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
@@ -204,9 +204,9 @@ test('GET: api/profile/feature', async () => {
                 },
                 geometry: {
                     type: 'Point',
-                    coordinates: [123.3223, 123.0002, 123]
-                }
-            }]
+                    coordinates: [123.3223, 123.0002, 123],
+                },
+            }],
         });
     } catch (err) {
         assert.ifError(err);
@@ -218,7 +218,7 @@ test('GET: api/profile/feature/123', async () => {
         const res = await flight.fetch('/api/profile/feature/123', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
         }, true);
 
@@ -238,8 +238,8 @@ test('GET: api/profile/feature/123', async () => {
             },
             geometry: {
                 type: 'Point',
-                coordinates: [123.3223, 123.0002, 123]
-            }
+                coordinates: [123.3223, 123.0002, 123],
+            },
         });
     } catch (err) {
         assert.ifError(err);
@@ -251,13 +251,13 @@ test('DELETE: api/profile/feature/123', async () => {
         const res = await flight.fetch('/api/profile/feature/123', {
             method: 'DELETE',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
             status: 200,
-            message: 'Feature Deleted'
+            message: 'Feature Deleted',
         });
     } catch (err) {
         assert.ifError(err);
@@ -269,7 +269,7 @@ test('PUT: api/profile/feature - Enabled Geofence', async () => {
         await flight.fetch('/api/profile/feature', {
             method: 'PUT',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 id: 'geofence-profile',
@@ -287,14 +287,14 @@ test('PUT: api/profile/feature - Enabled Geofence', async () => {
                         elevationMonitored: false,
                         monitor: 'All',
                         trigger: 'Entry',
-                        tracking: true
-                    }
+                        tracking: true,
+                    },
                 },
                 geometry: {
                     type: 'Point',
-                    coordinates: [0, 0]
-                }
-            }
+                    coordinates: [0, 0],
+                },
+            },
         }, true);
 
         const feature = await flight.config!.models.ProfileFeature.from(sql`

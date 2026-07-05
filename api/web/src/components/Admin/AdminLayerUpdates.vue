@@ -24,20 +24,20 @@
 
         <div style='min-height: 20vh; margin-bottom: 61px'>
             <TablerLoading
-                v-if='loading'
+                v-if='initialLoading'
                 desc='Loading Layer Updates'
             />
             <TablerAlert
-                v-else-if='error'
+                v-else-if='!initialLoading && error'
                 :err='error'
             />
             <TablerNone
-                v-else-if='!list.items.length'
+                v-else-if='!initialLoading && !list.items.length'
                 label='No Layers'
                 :create='false'
             />
             <div
-                v-else
+                v-else-if='!initialLoading'
                 class='table-responsive pb-5'
             >
                 <table class='table card-table table-hover table-vcenter datatable'>
@@ -113,7 +113,7 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { openSecondaryView } from '../../base/capacitor.ts';
-import { std } from '../../std.ts';
+import { server } from '../../std.ts';
 import type { AdminLayerUpdate, AdminLayerUpdateList } from '../../types.ts';
 import {
     TablerAlert,
@@ -132,6 +132,7 @@ const router = useRouter();
 
 const error = ref<Error | undefined>();
 const loading = ref(true);
+const initialLoading = ref(true);
 const updating = ref<Record<number, boolean>>({});
 const list = ref<AdminLayerUpdateList>({
     total: 0,
@@ -142,16 +143,25 @@ onMounted(async () => {
     await fetchList();
 });
 
+function layerConnectionId(layer: AdminLayerUpdate): number {
+    return layer.connection ?? 0;
+}
+
 async function fetchList(): Promise<void> {
     loading.value = true;
     error.value = undefined;
 
     try {
-        list.value = await std('/api/layer/update-management') as AdminLayerUpdateList;
+        const res = await server.GET('/api/layer/update-management');
+
+        if (res.error) throw new Error(res.error.message);
+
+        list.value = res.data as AdminLayerUpdateList;
     } catch (err) {
         error.value = err instanceof Error ? err : new Error(String(err));
     } finally {
         loading.value = false;
+        initialLoading.value = false;
     }
 }
 
@@ -164,12 +174,22 @@ async function updateLayer(layer: AdminLayerUpdate): Promise<void> {
             throw new Error('No newer version available');
         }
 
-        await std(`/api/connection/${layer.connection ?? 'template'}/layer/${layer.id}`, {
-            method: 'PATCH',
+        const res = await server.PATCH('/api/connection/{:connectionid}/layer/{:layerid}', {
+            params: {
+                query: {
+                    alarms: false
+                },
+                path: {
+                    ':connectionid': layerConnectionId(layer),
+                    ':layerid': layer.id
+                }
+            },
             body: {
                 task: `${layer.task_prefix}-v${layer.latest_version}`
             }
         });
+
+        if (res.error) throw new Error(res.error.message);
 
         await fetchList();
     } catch (err) {
@@ -184,9 +204,16 @@ async function redeployLayer(layer: AdminLayerUpdate): Promise<void> {
     error.value = undefined;
 
     try {
-        await std(`/api/connection/${layer.connection ?? 'template'}/layer/${layer.id}/redeploy`, {
-            method: 'POST'
+        const res = await server.POST('/api/connection/{:connectionid}/layer/{:layerid}/redeploy', {
+            params: {
+                path: {
+                    ':connectionid': layerConnectionId(layer),
+                    ':layerid': layer.id
+                }
+            }
         });
+
+        if (res.error) throw new Error(res.error.message);
 
         await fetchList();
     } catch (err) {
@@ -210,6 +237,6 @@ function canManageLayer(layer: AdminLayerUpdate): boolean {
 }
 
 function openLayer(layer: AdminLayerUpdate): void {
-    void openSecondaryView(`/connection/${layer.connection ?? 'template'}/layer/${layer.id}`);
+    void openSecondaryView(`/connection/${layer.connection ?? 0}/layer/${layer.id}`);
 }
 </script>

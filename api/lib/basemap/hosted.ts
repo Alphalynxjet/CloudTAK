@@ -1,4 +1,5 @@
 import undici from 'undici';
+import { isSafeUrl } from '@tak-ps/node-safeurl';
 import type { Response } from 'express';
 import Err from '@openaddresses/batch-error';
 import { BasemapProtocol, TileOpts } from '../interface-basemap.js';
@@ -25,18 +26,21 @@ export default class HostedBasemap extends BasemapProtocol {
     protected async _tile(
         z: number, x: number, y: number,
         res: Response,
-        opts: Required<TileOpts>
+        opts: Required<TileOpts>,
     ): Promise<void> {
         const url = new URL(this.basemap!.url
             .replace(/\{\$?z\}/, String(z))
             .replace(/\{\$?x\}/, String(x))
-            .replace(/\{\$?y\}/, String(y))
+            .replace(/\{\$?y\}/, String(y)),
         );
 
         try {
+            const { safe, reason } = await isSafeUrl(url.href);
+            if (!safe) throw new Err(400, null, `Blocked tile URL: ${reason}`);
+
             const stream = await undici.pipeline(url, {
                 method: 'GET',
-                headers: opts.headers as Record<string, string>
+                headers: opts.headers as Record<string, string>,
             }, ({ statusCode, headers, body }) => {
                 if (headers) {
                     for (const key in headers) {
@@ -60,10 +64,20 @@ export default class HostedBasemap extends BasemapProtocol {
 
             await new Promise((resolve, reject) => {
                 stream
-                    .on('data', (buf) => { res.write(buf); })
-                    .on('error', (err) => { return reject(err); })
-                    .on('end', () => { res.end(); return resolve(undefined); })
-                    .on('close', () => { res.end(); return resolve(undefined); })
+                    .on('data', (buf) => {
+                        res.write(buf);
+                    })
+                    .on('error', (err) => {
+                        return reject(err);
+                    })
+                    .on('end', () => {
+                        res.end();
+                        return resolve(undefined);
+                    })
+                    .on('close', () => {
+                        res.end();
+                        return resolve(undefined);
+                    })
                     .end();
             });
         } catch (err) {

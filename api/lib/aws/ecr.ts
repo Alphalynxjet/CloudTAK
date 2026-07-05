@@ -23,7 +23,7 @@ export default class ECR {
                 if (res && res.nextToken) req.nextToken = res.nextToken;
                 res = await ecr.send(new AWSECR.ListImagesCommand(req));
                 imageIds.push(...(res.imageIds || []));
-            } while (res.nextToken)
+            } while (res.nextToken);
 
             return imageIds;
         } catch (err) {
@@ -37,7 +37,7 @@ export default class ECR {
         try {
             const res = await ecr.send(new AWSECR.BatchGetImageCommand({
                 repositoryName: repositoryName(),
-                imageIds: [{ imageTag }]
+                imageIds: [{ imageTag }],
             }));
 
             if (!res || !res.images) return false;
@@ -53,7 +53,7 @@ export default class ECR {
         try {
             const res = await ecr.send(new AWSECR.BatchGetImageCommand({
                 repositoryName: repositoryName(),
-                imageIds: [{ imageDigest }]
+                imageIds: [{ imageDigest }],
             }));
 
             if (!res || !res.images) return false;
@@ -99,7 +99,7 @@ export default class ECR {
         try {
             await ecr.send(new AWSECR.BatchDeleteImageCommand({
                 repositoryName: repositoryName(),
-                imageIds: [{ imageTag: `${task}-v${version}` }]
+                imageIds: [{ imageTag: `${task}-v${version}` }],
             }));
         } catch (err) {
             throw new Err(500, new Error(err instanceof Error ? err.message : String(err)), 'Failed to delete ECR Tasks');

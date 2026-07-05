@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import ws from 'ws';
 import Flight from './flight.js';
-import { DirectChat } from '@tak-ps/node-cot'
+import { DirectChat } from '@tak-ps/node-cot';
 
 const flight = new Flight();
 
@@ -15,13 +15,13 @@ test('GET: api/profile/chatroom', async () => {
         const res = await flight.fetch('/api/profile/chatroom', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
-             total: 0,
-             items: [],
+            total: 0,
+            items: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -47,11 +47,11 @@ test('Streaming: TAK Chat Message', async () => {
                     const chat = new DirectChat({
                         to: {
                             uid: 'ANDROID-CloudTAK-admin@example.com',
-                            callsign: 'admin@example.com'
+                            callsign: 'admin@example.com',
                         },
                         from: {
                             uid: 'ANDROID-CloudTAK-user@example.com',
-                            callsign: 'user@example.com'
+                            callsign: 'user@example.com',
                         },
                         message: 'Wilco',
                     });
@@ -72,7 +72,7 @@ test('Streaming: TAK Chat Message', async () => {
             } catch (err) {
                 reject(err);
             }
-        })
+        });
     });
 });
 
@@ -81,25 +81,24 @@ test('GET: api/profile/chatroom', async () => {
         const res = await flight.fetch('/api/profile/chatroom', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.ok(res.body.items[0].updated);
         delete res.body.items[0].updated;
 
         assert.deepEqual(res.body, {
-             total: 1,
-             items: [{
+            total: 1,
+            items: [{
                 id: 'user@example.com',
-                chatroom: 'user@example.com'
-             }],
+                chatroom: 'user@example.com',
+            }],
         });
     } catch (err) {
         assert.ifError(err);
     }
 });
-
 
 let lastMessageId: string | undefined;
 
@@ -108,13 +107,13 @@ test('GET: api/profile/chatroom/:chatroom/chat (Get Message)', async () => {
         const res = await flight.fetch('/api/profile/chatroom/user%40example.com/chat', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.total, 1);
         assert.equal(res.body.items[0].message, 'Wilco');
-        
+
         lastMessageId = res.body.items[0].message_id;
         assert.ok(lastMessageId);
     } catch (err) {
@@ -127,13 +126,13 @@ test('DELETE: api/profile/chatroom/:chatroom/chat (Delete Message)', async () =>
         const res = await flight.fetch(`/api/profile/chatroom/user%40example.com/chat?chat=${lastMessageId}`, {
             method: 'DELETE',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
             status: 200,
-            message: 'Deleted Chats'
+            message: 'Deleted Chats',
         });
     } catch (err) {
         assert.ifError(err);
@@ -145,8 +144,8 @@ test('GET: api/profile/chatroom/:chatroom/chat (Verify Delete)', async () => {
         const res = await flight.fetch('/api/profile/chatroom/user%40example.com/chat', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.total, 0);

@@ -1,11 +1,11 @@
-import { Type, Static } from '@sinclair/typebox'
+import { Type, Static } from '@sinclair/typebox';
 import { sql, eq } from 'drizzle-orm';
 import Schema from '@openaddresses/batch-schema';
 import Err from '@openaddresses/batch-error';
 import Auth from '../lib/auth.js';
-import { ProfileResponse, ProfileListResponse } from '../lib/types.js'
+import { ProfileResponse, ProfileListResponse } from '../lib/types.js';
 import Config from '../lib/config.js';
-import { TAKRole, TAKGroup } from '@tak-ps/node-tak/lib/api/types'
+import { TAKRole, TAKGroup } from '@tak-ps/node-tak/lib/api/types';
 import { Profile, ProfileSession } from '../lib/schema.js';
 import * as Default from '../lib/limits.js';
 import ProfileControl from '../lib/control/profile.js';
@@ -17,7 +17,7 @@ const UserPatchBody = Type.Object({
     tak_type: Type.Optional(Type.String()),
     tak_role: Type.Optional(Type.Enum(TAKRole)),
 
-    system_admin: Type.Optional(Type.Boolean())
+    system_admin: Type.Optional(Type.Boolean()),
 });
 
 type UserPatchBodyType = Static<typeof UserPatchBody>;
@@ -36,14 +36,14 @@ export default async function router(schema: Schema, config: Config) {
             order: Default.Order,
             sort: Type.String({
                 default: 'last_login',
-                enum: Object.keys(Profile)
+                enum: Object.keys(Profile),
             }),
-            filter: Default.Filter
+            filter: Default.Filter,
         }),
         res: Type.Object({
             total: Type.Integer(),
-            items: Type.Array(ProfileListResponse)
-        })
+            items: Type.Array(ProfileListResponse),
+        }),
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -55,20 +55,20 @@ export default async function router(schema: Schema, config: Config) {
                 sort: req.query.sort,
                 where: sql`
                     username ~* ${req.query.filter}
-                `
+                `,
             });
 
             list.items = list.items.map((user) => {
                 return {
                     active: config.wsClients.has(user.username),
-                    ...user
-                }
+                    ...user,
+                };
             });
 
             // @ts-expect-error Update Batch-Generic to specify actual geometry type (Point) instead of Geometry
             res.json(list);
         } catch (err) {
-             Err.respond(err, res);
+            Err.respond(err, res);
         }
     });
 
@@ -80,7 +80,7 @@ export default async function router(schema: Schema, config: Config) {
             username: Type.String(),
         }),
         body: UserPatchBody,
-        res: ProfileResponse
+        res: ProfileResponse,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -91,9 +91,9 @@ export default async function router(schema: Schema, config: Config) {
 
             for (const key of Object.keys(profileBody) as Array<keyof UserPatchBodyType>) {
                 if (key === 'system_admin') {
-                     profile_body.system_admin = profileBody[key];
+                    profile_body.system_admin = profileBody[key];
                 } else {
-                     profile_config[String(key).replace('_', '::')] = profileBody[key];
+                    profile_config[String(key).replace('_', '::')] = profileBody[key];
                 }
             }
 
@@ -109,7 +109,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json(profile);
         } catch (err) {
-             Err.respond(err, res);
+            Err.respond(err, res);
         }
     });
 
@@ -120,7 +120,7 @@ export default async function router(schema: Schema, config: Config) {
         params: Type.Object({
             username: Type.String(),
         }),
-        res: ProfileResponse
+        res: ProfileResponse,
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -129,7 +129,7 @@ export default async function router(schema: Schema, config: Config) {
 
             res.json(profile);
         } catch (err) {
-             Err.respond(err, res);
+            Err.respond(err, res);
         }
     });
 
@@ -146,13 +146,13 @@ export default async function router(schema: Schema, config: Config) {
             order: Default.Order,
             sort: Type.String({
                 default: 'created',
-                enum: Object.keys(ProfileSession)
+                enum: Object.keys(ProfileSession),
             }),
         }),
         res: Type.Object({
             total: Type.Integer(),
             items: Type.Array(Type.Object({
-                id: Type.Integer(),
+                id: Type.String(),
                 username: Type.String(),
                 created: Type.String(),
                 ip: Type.String(),
@@ -161,8 +161,8 @@ export default async function router(schema: Schema, config: Config) {
                 os: Type.String(),
                 user_agent: Type.String(),
                 active: Type.Boolean(),
-            }))
-        })
+            })),
+        }),
     }, async (req, res) => {
         try {
             await Auth.as_user(config, req, { admin: true });
@@ -175,20 +175,20 @@ export default async function router(schema: Schema, config: Config) {
                 where: eq(ProfileSession.username, req.params.username),
             });
 
-            const activeSessions = new Set<number>();
+            const activeSessions = new Set<string>();
             for (const client of config.wsClients.get(req.params.username) || []) {
                 if (client.session !== undefined) activeSessions.add(client.session);
             }
 
             res.json({
                 total: list.total,
-                items: list.items.map((item) => ({
+                items: list.items.map(item => ({
                     ...item,
                     active: activeSessions.has(item.id),
-                }))
+                })),
             });
         } catch (err) {
-             Err.respond(err, res);
+            Err.respond(err, res);
         }
     });
 }

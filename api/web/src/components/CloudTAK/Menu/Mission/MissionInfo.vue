@@ -54,6 +54,12 @@
                                     :inline='true'
                                 />
                                 <p
+                                    v-else-if='isOffline'
+                                    class='text-white fw-semibold p-0 mb-0'
+                                >
+                                    —
+                                </p>
+                                <p
                                     v-else
                                     class='text-white fw-semibold p-0 mb-0'
                                     v-text='subscriptions.length + " Users"'
@@ -234,6 +240,7 @@
                 <img
                     :src='missionQRURL'
                     class='invite-qr-image img-fluid'
+                    :style='appStore.resolvedTheme === "dark" ? { filter: "invert(1)" } : undefined'
                 >
             </div>
         </div>
@@ -242,6 +249,7 @@
 
 <script setup lang='ts'>
 import { ref, onMounted, computed } from 'vue';
+import { Preferences } from '@capacitor/preferences';
 import type { MissionSubscriptions } from '../../../../types.ts';
 import { useRoute, useRouter } from 'vue-router';
 import { stdurl } from '../../../../std.ts'
@@ -265,18 +273,24 @@ import {
     TablerNone,
 } from '@tak-ps/vue-tabler';
 import MenuTemplate from '../../util/MenuTemplate.vue';
-import Overlay from '../../../../base/overlay.ts';
+import OverlayManager from '../../../../base/overlay.ts';
 import { useMapStore } from '../../../../stores/map.ts';
+import { useDeviceStore } from '../../../../stores/device.ts';
+import { useAppStore } from '../../../../stores/app.ts';
 const mapStore = useMapStore();
+const deviceStore = useDeviceStore();
+const appStore = useAppStore();
+const isOffline = computed(() => !deviceStore.network.isOnline);
 
 const emit = defineEmits(['refresh']);
 
 const props = defineProps<{
     subscription: Subscription
 }>();
+const token = ref<string | null>(null);
 
 const missionQRURL = computed(() => {
-    return String(stdurl(`/api/marti/missions/${props.subscription.guid}/qr?token=${localStorage.token}`));
+    return String(stdurl(`/api/marti/missions/${props.subscription.guid}/qr${token.value ? `?token=${encodeURIComponent(token.value)}` : ''}`));
 });
 
 const keywords = computed(() => {
@@ -369,6 +383,8 @@ const subscriptions = ref<MissionSubscriptions>([]);
 const missionTemplate = ref<MissionTemplate>();
 
 onMounted(async () => {
+    token.value = (await Preferences.get({ key: 'token' })).value;
+
     loading.value.users = true;
     await fetchSubscriptions();
     loading.value.users = false;
@@ -398,6 +414,7 @@ const loading = ref({
 });
 
 async function fetchSubscriptions() {
+    if (isOffline.value) return;
     loading.value.users = true;
     subscriptions.value = await props.subscription.subscriptions();
     loading.value.users = false;
@@ -413,30 +430,27 @@ async function updateDescription(description: string) {
 
 async function subscribe(subscribe: boolean) {
     loading.value.subscribe = true;
-    const overlay = mapStore.getOverlayByMode('mission', props.subscription.guid);
+    const overlay = OverlayManager.loadedByMode('mission', props.subscription.guid);
 
     if (subscribe === true && !overlay) {
-        const missionOverlay = await Overlay.create({
+        await OverlayManager.createLoaded({
             name: props.subscription.name,
             url: `/mission/${encodeURIComponent(props.subscription.guid)}`,
             type: 'geojson',
             mode: 'mission',
             token: props.subscription.missiontoken,
             mode_id: props.subscription.guid,
-        }, {
-            before: mapStore.getOverlayBeforeId()
         })
 
-        mapStore.addOverlay(missionOverlay);
         await mapStore.loadMission(props.subscription.guid);
 
         emit('refresh');
     } else if (subscribe === false && overlay) {
         if (mapStore.mission && mapStore.mission.meta.guid === props.subscription.meta.guid) {
-            mapStore.makeActiveMission();
+            await mapStore.makeActiveMission();
         }
 
-        await mapStore.removeOverlay(overlay);
+        await OverlayManager.deleteLoaded(overlay);
 
         emit('refresh');
     }

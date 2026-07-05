@@ -1,20 +1,6 @@
 import { Browser } from '@capacitor/browser';
-import { Clipboard } from '@capacitor/clipboard';
+import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
-import type { CallbackID, Position, PositionOptions } from '@capacitor/geolocation';
-
-function getRuntimeOrigin(): string {
-    if (typeof window !== 'undefined') {
-        return window.location.origin;
-    }
-
-    if (typeof self !== 'undefined') {
-        return self.location.origin;
-    }
-
-    return 'http://localhost';
-}
 
 export function isNativePlatform(): boolean {
     return Capacitor.isNativePlatform();
@@ -24,16 +10,41 @@ export function supportsServiceWorker(): boolean {
     return typeof navigator !== 'undefined' && !isNativePlatform() && 'serviceWorker' in navigator;
 }
 
-export function supportsLocationRequests(): boolean {
-    return isNativePlatform() || (typeof navigator !== 'undefined' && 'geolocation' in navigator);
-}
+/**
+ * Subscribe to foreground/background transitions in a way that is reliable on
+ * native platforms. On native we use Capacitor's `App.appStateChange`, which
+ * fires accurately when the app is suspended/resumed by the OS — unlike the web
+ * `document.hidden`/`visibilitychange` API, which is unreliable inside an iOS
+ * WebView. On web we fall back to the Page Visibility API.
+ *
+ * The handler is invoked with `true` when the app is backgrounded and `false`
+ * when it returns to the foreground. Returns a function that removes the
+ * listener.
+ */
+export async function addBackgroundStateListener(
+    handler: (isBackgrounded: boolean) => void
+): Promise<() => void> {
+    if (isNativePlatform()) {
+        const listener = await App.addListener('appStateChange', ({ isActive }) => {
+            handler(!isActive);
+        });
 
-export function resolveRuntimeUrl(url: string | URL): URL {
-    return url instanceof URL ? url : new URL(String(url), getRuntimeOrigin());
+        return () => { void listener.remove(); };
+    }
+
+    if (typeof document === 'undefined') {
+        return () => { /* no-op */ };
+    }
+
+    const onVisibilityChange = (): void => { handler(document.hidden); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => { document.removeEventListener('visibilitychange', onVisibilityChange); };
 }
 
 export async function openExternalUrl(url: string | URL): Promise<void> {
-    const href = resolveRuntimeUrl(url).toString();
+    const { stdurl } = await import('../std.ts');
+    const href = stdurl(url).toString();
 
     if (isNativePlatform()) {
         await Browser.open({ url: href });
@@ -44,7 +55,8 @@ export async function openExternalUrl(url: string | URL): Promise<void> {
 }
 
 export async function openSecondaryView(url: string | URL): Promise<void> {
-    const href = resolveRuntimeUrl(url);
+    const { stdurl } = await import('../std.ts');
+    const href = stdurl(url);
 
     if (isNativePlatform()) {
         if (typeof window !== 'undefined' && href.origin === window.location.origin) {
@@ -57,56 +69,4 @@ export async function openSecondaryView(url: string | URL): Promise<void> {
     }
 
     window.open(href.toString(), '_blank', 'noopener');
-}
-
-export async function writeClipboardText(value: string): Promise<void> {
-    await Clipboard.write({ string: value });
-}
-
-function normalizeNativePermissionState(state: string | null | undefined): PermissionState | 'prompt' | 'unknown' {
-    switch (state) {
-        case 'granted':
-        case 'denied':
-            return state;
-        case 'prompt':
-        case 'prompt-with-rationale':
-            return 'prompt';
-        default:
-            return 'unknown';
-    }
-}
-
-export async function checkNativeLocationPermission(): Promise<PermissionState | 'prompt' | 'unknown'> {
-    try {
-        const status = await Geolocation.checkPermissions();
-        return normalizeNativePermissionState(status.location ?? status.coarseLocation);
-    } catch (err) {
-        console.warn('Failed to query native geolocation permission status', err);
-        return 'unknown';
-    }
-}
-
-export async function requestNativeLocationPermission(): Promise<PermissionState | 'prompt' | 'unknown'> {
-    try {
-        const status = await Geolocation.requestPermissions();
-        return normalizeNativePermissionState(status.location ?? status.coarseLocation);
-    } catch (err) {
-        console.warn('Failed to request native geolocation permission', err);
-        return 'unknown';
-    }
-}
-
-export async function getCurrentLocation(options?: PositionOptions): Promise<Position> {
-    return Geolocation.getCurrentPosition(options);
-}
-
-export async function watchLocation(
-    options: PositionOptions,
-    callback: (position: Position | null, err?: unknown) => void
-): Promise<CallbackID> {
-    return Geolocation.watchPosition(options, callback);
-}
-
-export async function clearLocationWatch(id: CallbackID): Promise<void> {
-    await Geolocation.clearWatch({ id });
 }

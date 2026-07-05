@@ -15,13 +15,13 @@ test('GET: /template/mission - empty', async () => {
         const res = await flight.fetch('/api/template/mission', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.deepEqual(res.body, {
             total: 0,
-            items: []
+            items: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -35,14 +35,14 @@ test('POST: /template/mission - create', async () => {
         const res = await flight.fetch('/api/template/mission', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'Test Template',
                 description: 'A test mission template',
                 icon: validIcon,
-                keywords: ['tag1', 'tag2']
-            }
+                keywords: ['tag1', 'tag2'],
+            },
         }, true);
 
         assert.ok(res.body.id, 'returned an id');
@@ -64,8 +64,8 @@ test('GET: /template/mission - list', async () => {
         const res = await flight.fetch('/api/template/mission', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.total, 1);
@@ -83,8 +83,8 @@ test('GET: /template/mission/:mission - get', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}`, {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.id, templateId);
@@ -102,13 +102,13 @@ test('PATCH: /template/mission/:mission - update', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}`, {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'Updated Template',
                 description: 'An updated description',
-                keywords: ['tag3']
-            }
+                keywords: ['tag3'],
+            },
         }, true);
 
         assert.equal(res.body.id, templateId);
@@ -126,8 +126,8 @@ test('DELETE: /template/mission/:mission - delete', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}`, {
             method: 'DELETE',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.status, 200);
@@ -142,8 +142,8 @@ test('GET: /template/mission/:mission - not found', async () => {
         const res = await flight.fetch(`/api/template/mission/${templateId}`, {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, false);
 
         assert.equal(res.status, 404);

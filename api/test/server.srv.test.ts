@@ -15,8 +15,8 @@ test('GET: api/server - Configured - Admin', async () => {
         const res = await flight.fetch('/api/server', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         assert.equal(res.body.status, 'configured');
@@ -37,8 +37,8 @@ test('GET: api/server - Configured - Non-admin User', async () => {
         const res = await flight.fetch('/api/server', {
             method: 'GET',
             auth: {
-                bearer: flight.token.user
-            }
+                bearer: flight.token.user,
+            },
         }, true);
 
         assert.equal(res.body.status, 'configured');
@@ -68,7 +68,7 @@ test('PATCH: api/server - Configured - Non-admin User', async () => {
         const res = await flight.fetch('/api/server', {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.user
+                bearer: flight.token.user,
             },
             body: {
                 name: 'Updated Server',
@@ -77,9 +77,9 @@ test('PATCH: api/server - Configured - Non-admin User', async () => {
                 webtak: 'http://localhost:8444',
                 auth: {
                     cert: String(fs.readFileSync(flight.tak.keys.cert)),
-                    key: String(fs.readFileSync(flight.tak.keys.key))
-                }
-            }
+                    key: String(fs.readFileSync(flight.tak.keys.key)),
+                },
+            },
         }, false);
 
         assert.equal(res.status, 401);
@@ -93,7 +93,7 @@ test('PATCH: api/server - Configured - Admin', async () => {
         const res = await flight.fetch('/api/server', {
             method: 'PATCH',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'Updated Server',
@@ -102,9 +102,9 @@ test('PATCH: api/server - Configured - Admin', async () => {
                 webtak: 'http://localhost:8444',
                 auth: {
                     cert: String(fs.readFileSync(flight.tak.keys.cert)),
-                    key: String(fs.readFileSync(flight.tak.keys.key))
-                }
-            }
+                    key: String(fs.readFileSync(flight.tak.keys.key)),
+                },
+            },
         }, true);
 
         assert.equal(res.body.status, 'configured');
@@ -120,10 +120,11 @@ test('Reset Server to Unconfigured', async () => {
     try {
         flight.config!.server = await flight.config!.models.Server.commit(1, {
             name: 'Default Server',
+            connection_status: 'dead',
             url: '',
             api: '',
             webtak: '',
-            auth: {}
+            auth: {},
         });
     } catch (err) {
         assert.ifError(err);
@@ -135,8 +136,8 @@ test('GET: api/server - Unconfigured - Admin', async () => {
         const res = await flight.fetch('/api/server', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, true);
 
         delete res.body.version;
@@ -147,10 +148,12 @@ test('GET: api/server - Unconfigured - Admin', async () => {
             id: 1,
             status: 'unconfigured',
             name: 'Default Server',
+            connection_status: 'dead',
+            connection: true,
             url: '',
             api: '',
             webtak: '',
-            auth: false
+            auth: false,
         });
     } catch (err) {
         assert.ifError(err);
@@ -162,8 +165,8 @@ test('GET: api/server - Unconfigured - User', async () => {
         const res = await flight.fetch('/api/server', {
             method: 'GET',
             auth: {
-                bearer: flight.token.user
-            }
+                bearer: flight.token.user,
+            },
         }, true);
 
         delete res.body.version;
@@ -174,10 +177,12 @@ test('GET: api/server - Unconfigured - User', async () => {
             id: 1,
             status: 'unconfigured',
             name: 'Default Server',
+            connection_status: 'dead',
+            connection: true,
             url: '',
             api: '',
             webtak: '',
-            auth: false
+            auth: false,
         });
     } catch (err) {
         assert.ifError(err);
@@ -198,10 +203,12 @@ test('GET: api/server - Unconfigured - No Auth', async () => {
             id: 1,
             status: 'unconfigured',
             name: 'Default Server',
+            connection_status: 'dead',
+            connection: true,
             url: '',
             api: '',
             webtak: '',
-            auth: false
+            auth: false,
         });
     } catch (err) {
         assert.ifError(err);
@@ -212,6 +219,9 @@ test('PATCH: api/server - Unconfigured without username/password', async () => {
     try {
         const res = await flight.fetch('/api/server', {
             method: 'PATCH',
+            auth: {
+                bearer: flight.token.admin,
+            },
             body: {
                 name: 'Test Server',
                 url: 'ssl://localhost:8089',
@@ -219,9 +229,9 @@ test('PATCH: api/server - Unconfigured without username/password', async () => {
                 webtak: 'http://localhost:8444',
                 auth: {
                     cert: String(fs.readFileSync(flight.tak.keys.cert)),
-                    key: String(fs.readFileSync(flight.tak.keys.key))
-                }
-            }
+                    key: String(fs.readFileSync(flight.tak.keys.key)),
+                },
+            },
         }, false);
 
         assert.equal(res.status, 400);

@@ -13,19 +13,22 @@ flight.user();
 test('POST: api/connection - Invalid X509 Certificate', async () => {
     const key = String(fs.readFileSync(flight.tak.keys.key));
 
+    // Clear any requests from admin connection initialization
+    flight.tak.martiRequests.length = 0;
+
     const res = await flight.fetch('/api/connection', {
         method: 'POST',
         auth: {
-            bearer: flight.token.admin
+            bearer: flight.token.admin,
         },
         body: {
             name: 'Bad Cert Connection',
             description: 'test',
             auth: {
                 cert: '-----BEGIN CERTIFICATE-----\nINVALID\n-----END CERTIFICATE-----',
-                key: key
-            }
-        }
+                key: key,
+            },
+        },
     }, false);
 
     assert.equal(res.status, 400);
@@ -36,19 +39,22 @@ test('POST: api/connection - Invalid X509 Certificate', async () => {
 test('POST: api/connection - Invalid Private Key', async () => {
     const cert = String(fs.readFileSync(flight.tak.keys.cert));
 
+    // Clear any requests from admin connection initialization
+    flight.tak.martiRequests.length = 0;
+
     const res = await flight.fetch('/api/connection', {
         method: 'POST',
         auth: {
-            bearer: flight.token.admin
+            bearer: flight.token.admin,
         },
         body: {
             name: 'Bad Key Connection',
             description: 'test',
             auth: {
                 cert: cert,
-                key: '-----BEGIN PRIVATE KEY-----\nINVALID\n-----END PRIVATE KEY-----'
-            }
-        }
+                key: '-----BEGIN PRIVATE KEY-----\nINVALID\n-----END PRIVATE KEY-----',
+            },
+        },
     }, false);
 
     assert.equal(res.status, 400);
@@ -57,6 +63,9 @@ test('POST: api/connection - Invalid Private Key', async () => {
 });
 
 test('PATCH: api/connection/:id - Invalid Private Key', async () => {
+    // Clear any requests from admin connection initialization
+    flight.tak.martiRequests.length = 0;
+
     // Generate valid keys for initial creation
     CP.execSync(`
         openssl req \
@@ -87,7 +96,7 @@ test('PATCH: api/connection/:id - Invalid Private Key', async () => {
     const createRes = await flight.fetch('/api/connection', {
         method: 'POST',
         auth: {
-            bearer: flight.token.admin
+            bearer: flight.token.admin,
         },
         body: {
             name: 'Patch Connection',
@@ -95,25 +104,25 @@ test('PATCH: api/connection/:id - Invalid Private Key', async () => {
             enabled: false,
             auth: {
                 cert: validCert,
-                key: validKey
-            }
-        }
+                key: validKey,
+            },
+        },
     }, true);
-    
+
     const connId = createRes.body.id;
 
     // PATCH with invalid cert
     const certRes = await flight.fetch(`/api/connection/${connId}`, {
         method: 'PATCH',
         auth: {
-            bearer: flight.token.admin
+            bearer: flight.token.admin,
         },
         body: {
             auth: {
                 cert: '-----BEGIN CERTIFICATE-----\nINVALID\n-----END CERTIFICATE-----',
-                key: validKey
-            }
-        }
+                key: validKey,
+            },
+        },
     }, false);
 
     assert.equal(certRes.status, 400);
@@ -123,14 +132,14 @@ test('PATCH: api/connection/:id - Invalid Private Key', async () => {
     const res = await flight.fetch(`/api/connection/${connId}`, {
         method: 'PATCH',
         auth: {
-            bearer: flight.token.admin
+            bearer: flight.token.admin,
         },
         body: {
             auth: {
                 cert: validCert,
-                key: '-----BEGIN PRIVATE KEY-----\nINVALID\n-----END PRIVATE KEY-----'
-            }
-        }
+                key: '-----BEGIN PRIVATE KEY-----\nINVALID\n-----END PRIVATE KEY-----',
+            },
+        },
     }, false);
 
     assert.equal(res.status, 400);

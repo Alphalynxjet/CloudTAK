@@ -1,6 +1,6 @@
 import { Static } from '@sinclair/typebox';
 import fs from 'node:fs';
-import { Profile_Style } from './enums.js';
+import { Profile_Style, Profile_Radiation_Dose } from './enums.js';
 import { FullConfig } from './types.js';
 
 export const FullConfigDefaults: Partial<Static<typeof FullConfig>> = {
@@ -11,13 +11,27 @@ export const FullConfigDefaults: Partial<Static<typeof FullConfig>> = {
     'retention::chat::days': 30,
     'retention::import::enabled': false,
     'retention::import::days': 30,
+    'retention::feature::enabled': false,
+    'retention::feature::days': 30,
+    'notification::enabled': false,
+    'notification::email::enabled': false,
+    'notification::email::service': 'aws',
+    'notification::sms::enabled': false,
+    'notification::sms::service': 'aws',
+    'notification::push::enabled': false,
+    'notification::push::service': 'firebase',
+    'notification::push::firebase::project_id': '',
+    'notification::push::firebase::client_email': '',
+    'notification::push::firebase::private_key': '',
     'map::center': '-100,40',
     'map::zoom': 4,
     'map::pitch': 0,
     'map::bearing': 0,
     'display::style': Profile_Style.SYSTEM_DEFAULT,
+    'display::radiation_dose': Profile_Radiation_Dose.SIEVERTS,
     'proxy::enabled': false,
     'proxy::whitelist': [],
+    'media::proxy::allow': [],
     'login::name': 'CloudTAK',
     'login::logo': `data:image/svg+xml;base64,${fs.readFileSync(new URL('../web/public/CloudTAKLogo.svg', import.meta.url)).toString('base64')}`,
     'login::signup': '',

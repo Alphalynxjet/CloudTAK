@@ -14,13 +14,13 @@ test('GET: api/login/passkey - empty before registration', async () => {
         const res = await flight.fetch('/api/login/passkey', {
             method: 'GET',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, false);
 
         assert.deepEqual(res.body, {
             total: 0,
-            items: []
+            items: [],
         });
     } catch (err) {
         assert.ifError(err);
@@ -32,8 +32,8 @@ test('POST: api/login/passkey/register/options - get registration options', asyn
         const res = await flight.fetch('/api/login/passkey/register/options', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, false);
 
         assert.ok(res.body.challenge);
@@ -51,7 +51,7 @@ test('POST: api/login/passkey/authenticate/options - get auth options (no userna
     try {
         const res = await flight.fetch('/api/login/passkey/authenticate/options', {
             method: 'POST',
-            body: {}
+            body: {},
         }, false);
 
         assert.ok(res.body.challenge);
@@ -61,22 +61,20 @@ test('POST: api/login/passkey/authenticate/options - get auth options (no userna
     }
 });
 
-
-
 test('POST: api/login/passkey/register - rejects invalid credential', async () => {
     try {
         // First get registration options to generate a challenge
         await flight.fetch('/api/login/passkey/register/options', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
-            }
+                bearer: flight.token.admin,
+            },
         }, false);
 
         const res = await flight.fetch('/api/login/passkey/register', {
             method: 'POST',
             auth: {
-                bearer: flight.token.admin
+                bearer: flight.token.admin,
             },
             body: {
                 name: 'Test Key',
@@ -88,9 +86,9 @@ test('POST: api/login/passkey/register - rejects invalid credential', async () =
                         attestationObject: 'AAAA',
                         clientDataJSON: 'AAAA',
                     },
-                    clientExtensionResults: {}
-                }
-            }
+                    clientExtensionResults: {},
+                },
+            },
         }, false);
 
         assert.ok(!res.ok);
@@ -105,7 +103,7 @@ test('POST: api/login/passkey/authenticate - rejects unknown credential', async 
         // Get auth options first
         await flight.fetch('/api/login/passkey/authenticate/options', {
             method: 'POST',
-            body: {}
+            body: {},
         }, false);
 
         const res = await flight.fetch('/api/login/passkey/authenticate', {
@@ -120,9 +118,9 @@ test('POST: api/login/passkey/authenticate - rejects unknown credential', async 
                         clientDataJSON: 'AAAA',
                         signature: 'AAAA',
                     },
-                    clientExtensionResults: {}
-                }
-            }
+                    clientExtensionResults: {},
+                },
+            },
         }, false);
 
         assert.ok(!res.ok);

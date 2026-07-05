@@ -7,24 +7,24 @@ import type { Profile, Connection, Layer } from './schema.js';
 
 export enum ResourceCreationScope {
     SERVER = 'server',
-    USER = 'user'
+    USER = 'user',
 }
 
 export enum AuthUserAccess {
     ADMIN = 'admin',
     AGENCY = 'agency',
-    USER = 'user'
+    USER = 'user',
 }
 
 function castUserAccessEnum(str: string): AuthUserAccess | undefined {
-  const value = AuthUserAccess[str.toUpperCase() as keyof typeof AuthUserAccess];
-  return value;
+    const value = AuthUserAccess[str.toUpperCase() as keyof typeof AuthUserAccess];
+    return value;
 }
 
 export type AuthResourceAccepted = {
     access: AuthResourceAccess;
     id?: string | number | undefined;
-}
+};
 
 export enum AuthResourceAccess {
     DATA = 'data',
@@ -38,12 +38,12 @@ export enum AuthResourceAccess {
     MEDIA = 'media',
 
     // Becomes AuthUser
-    PROFILE = 'profile'
+    PROFILE = 'profile',
 }
 
 function castResourceAccessEnum(str: string): AuthResourceAccess | undefined {
-  const value = AuthResourceAccess[str.toUpperCase() as keyof typeof AuthResourceAccess];
-  return value;
+    const value = AuthResourceAccess[str.toUpperCase() as keyof typeof AuthResourceAccess];
+    return value;
 }
 
 export class AuthResource {
@@ -56,7 +56,7 @@ export class AuthResource {
         token: string,
         access: AuthResourceAccess,
         id: number | string | undefined,
-        internal: boolean
+        internal: boolean,
     ) {
         this.token = token;
         this.internal = internal;
@@ -69,12 +69,12 @@ export class AuthUser {
     access: AuthUserAccess;
     email: string;
     token: string;
-    session?: number;
+    session?: string;
 
     // Username of admin doing the impersonating - if this value is populated the calling user is guarenteed to be an admin
     impersonate?: string;
 
-    constructor(access: AuthUserAccess, email: string, token: string, session?: number) {
+    constructor(access: AuthUserAccess, email: string, token: string, session?: string) {
         this.access = access;
         this.email = email;
         this.token = token;
@@ -82,7 +82,7 @@ export class AuthUser {
     }
 
     is_admin(): boolean {
-        return this.access === AuthUserAccess.ADMIN
+        return this.access === AuthUserAccess.ADMIN;
     }
 
     is_user(): boolean {
@@ -162,7 +162,7 @@ export default class Auth {
         layer?: InferSelectModel<typeof Layer>;
         profile?: InferSelectModel<typeof Profile>;
     }> {
-        const auth = await this.is_auth(config, req, opts)
+        const auth = await this.is_auth(config, req, opts);
 
         const connection = await config.models.Connection.from(connectionid);
 
@@ -228,13 +228,13 @@ export default class Auth {
     static async impersonate(
         config: Config,
         req: Request<any, any, any, any>,
-        impersonate: string
+        impersonate: string,
     ): Promise<AuthUser> {
         const adminUser = await this.as_user(config, req, { admin: true });
 
         const imp = await config.models.Profile.from(impersonate);
 
-        let access = AuthUserAccess.USER
+        let access = AuthUserAccess.USER;
         if (imp.agency_admin) access = AuthUserAccess.AGENCY;
         if (imp.system_admin) access = AuthUserAccess.ADMIN;
 
@@ -278,15 +278,15 @@ async function auth_request(
     config: Config,
     req: Request<any, any, any, any>,
     opts?: {
-        token: boolean
-    }
+        token: boolean;
+    },
 ): Promise<AuthResource | AuthUser> {
     try {
         if (req.headers && req.header('authorization')) {
             const authorization = (req.header('authorization') || '').split(' ');
 
             if (authorization[0].toLowerCase() !== 'bearer') {
-                throw new Err(401, null, 'Only "Bearer" authorization header is allowed')
+                throw new Err(401, null, 'Only "Bearer" authorization header is allowed');
             }
 
             if (!authorization[1]) {
@@ -303,13 +303,13 @@ async function auth_request(
         ) {
             return await tokenParser(config, req.query.token, config.SigningSecret);
         } else {
-            throw new Err(401, null, 'No Auth Present')
+            throw new Err(401, null, 'No Auth Present');
         }
     } catch (err) {
         if (err instanceof Error && err.name === 'PublicError') {
             throw err;
         } else {
-            throw new Err(401, new Error(String(err)), 'Invalid Token')
+            throw new Err(401, new Error(String(err)), 'Invalid Token');
         }
     }
 }
@@ -317,7 +317,7 @@ async function auth_request(
 export async function tokenParser(
     config: Config,
     token: string,
-    secret: string
+    secret: string,
 ): Promise<AuthUser | AuthResource> {
     if (token.startsWith('etl.')) {
         token = token.replace(/^etl\./, '');
@@ -352,9 +352,8 @@ export async function tokenParser(
         const access = castUserAccessEnum(decoded.access);
         if (!access) throw new Err(400, null, 'Invalid User Access Value');
 
-        const session = typeof decoded.s === 'number' ? decoded.s : undefined;
+        const session = typeof decoded.s === 'string' ? decoded.s : undefined;
 
         return new AuthUser(access, decoded.email, token, session);
     }
 }
-

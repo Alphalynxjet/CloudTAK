@@ -70,7 +70,7 @@
 
 <script setup lang='ts'>
 import { ref, onMounted, watch } from 'vue';
-import { server, std, stdurl } from '../../../std.ts';
+import { server, stdurl, downloadUrl } from '../../../std.ts';
 import type { PackageList } from '../../../types.ts';
 import {
     TablerRefreshButton,
@@ -148,12 +148,8 @@ async function deletePackage(pkg: PackageList["items"][0]) {
 }
 
 async function downloadPackage(pkg: PackageList["items"][0]) {
-    const url = stdurl(`/api/marti/api/files/${pkg.hash}`)
-    url.searchParams.set('token', localStorage.token);
+    const url = stdurl(`/api/marti/api/files/${pkg.hash}`);
     url.searchParams.set('name', pkg.name + '.zip');
-
-    await std(url, {
-        download: true
-    });
+    await downloadUrl(url, { token: true });
 }
 </script>

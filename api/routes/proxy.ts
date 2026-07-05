@@ -1,7 +1,8 @@
-import { Type } from '@sinclair/typebox'
+import { Type } from '@sinclair/typebox';
 import Schema from '@openaddresses/batch-schema';
 import Err from '@openaddresses/batch-error';
 import { fetch, Headers, Response } from 'undici';
+import { isSafeUrl } from '@tak-ps/node-safeurl';
 import Auth from '../lib/auth.js';
 import Config from '../lib/config.js';
 
@@ -20,7 +21,7 @@ const FORWARDED_REQUEST_HEADER_ALLOWLIST = new Set([
     'if-none-match',
     'user-agent',
     'x-api-key',
-    'x-requested-with'
+    'x-requested-with',
 ]);
 
 const BLOCKED_REQUEST_HEADERS = new Set([
@@ -37,7 +38,7 @@ const BLOCKED_REQUEST_HEADERS = new Set([
     'te',
     'trailer',
     'transfer-encoding',
-    'upgrade'
+    'upgrade',
 ]);
 
 const BLOCKED_RESPONSE_HEADERS = new Set([
@@ -49,13 +50,13 @@ const BLOCKED_RESPONSE_HEADERS = new Set([
     'te',
     'trailer',
     'transfer-encoding',
-    'upgrade'
+    'upgrade',
 ]);
 
 function normalizeWhitelist(raw: string[]): Set<string> {
     const whitelist = new Set<string>();
 
-    for (const entry of raw.map((entry) => String(entry).trim()).filter(Boolean)) {
+    for (const entry of raw.map(entry => String(entry).trim()).filter(Boolean)) {
         let url: URL;
 
         try {
@@ -199,7 +200,7 @@ async function readUpstreamBody(response: Response): Promise<{
 
     return {
         body: buf.toString('base64'),
-        encoding: 'base64'
+        encoding: 'base64',
     };
 }
 
@@ -212,17 +213,17 @@ export default async function router(schema: Schema, config: Config) {
             url: Type.String(),
             method: Type.Optional(Type.String({
                 enum: [...ALLOWED_METHODS],
-                default: 'GET'
+                default: 'GET',
             })),
             headers: Type.Optional(Type.Record(Type.String(), Type.String())),
-            body: Type.Optional(Type.Any())
+            body: Type.Optional(Type.Any()),
         }),
         res: Type.Object({
             status: Type.Integer(),
             headers: Type.Record(Type.String(), Type.String()),
             body: Type.Any(),
             encoding: Type.Optional(Type.String({ enum: ['base64'] })),
-        })
+        }),
     }, async (req, res) => {
         try {
             const user = await Auth.as_user(config, req);
@@ -252,6 +253,9 @@ export default async function router(schema: Schema, config: Config) {
                 throw new Err(403, null, `Proxy origin ${parsed.origin} is not allowed`);
             }
 
+            const { safe, reason } = await isSafeUrl(parsed.href, { allow: [...whitelist] });
+            if (!safe) throw new Err(403, null, `Blocked proxy URL: ${reason}`);
+
             const method = String(req.body.method || 'GET').toUpperCase() as typeof ALLOWED_METHODS[number];
             if (!ALLOWED_METHODS.includes(method)) {
                 throw new Err(400, null, 'Proxy method must be GET or POST');
@@ -265,7 +269,7 @@ export default async function router(schema: Schema, config: Config) {
                 headers,
                 body,
                 redirect: 'manual',
-                signal: AbortSignal.timeout(REQUEST_TIMEOUT)
+                signal: AbortSignal.timeout(REQUEST_TIMEOUT),
             });
 
             const response = await readUpstreamBody(upstream);
@@ -276,14 +280,14 @@ export default async function router(schema: Schema, config: Config) {
                 username: user.email,
                 method,
                 url: parsed.origin + parsed.pathname,
-                status: upstream.status
+                status: upstream.status,
             }));
 
             res.json({
                 status: upstream.status,
                 headers: responseHeaders,
                 body: response.body,
-                ...(response.encoding ? { encoding: response.encoding } : {})
+                ...(response.encoding ? { encoding: response.encoding } : {}),
             });
         } catch (err) {
             Err.respond(err, res);

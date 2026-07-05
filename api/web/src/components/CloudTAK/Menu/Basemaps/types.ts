@@ -30,7 +30,7 @@ export interface EditingBasemap {
     tilesize: number;
     attribution: string;
     sharing_enabled: boolean;
-    format: 'png' | 'jpeg' | 'mvt';
+    format: 'png' | 'jpeg' | 'mvt' | 'webp';
     bounds: number[];
     center: number[];
     collection: string;
@@ -42,6 +42,7 @@ export interface EditingBasemap {
     snapping_layer: string;
     styles: unknown[];
     tilejson: string;
+    encoding: 'mapbox' | 'terrarium' | null;
 }
 
 export interface VectorLayerFieldMap {
@@ -55,6 +56,7 @@ export interface VectorLayerDescriptor {
 
 export type BasemapImport = paths['/api/basemap']['put']['responses']['200']['content']['application/json'] & {
     vector_layers?: VectorLayerDescriptor[];
+    tilesize?: number;
 };
 
 export type BasemapSourceType = 'zxy' | 'imageserver' | 'mapserver' | 'featureserver' | 'tilejson' | 'upload' | 'hosted';
@@ -199,16 +201,27 @@ export function inferBasemapType(url?: string | null): BasemapSourceType | null 
 }
 
 export function normalizeEditing(data: Basemap | BasemapImport | BasemapListItem): EditingBasemap {
+    // Handle both tiles (array) and url (string) for backwards compatibility
+    let url = '';
+    if ('tiles' in data && Array.isArray(data.tiles) && data.tiles.length > 0) {
+        url = data.tiles[0];
+    } else if ('url' in data && data.url) {
+        url = data.url;
+    }
+
+    const rawType = 'type' in data ? data.type : undefined;
+    const rawFormat = 'format' in data ? data.format : undefined;
+
     return {
         name: data.name ?? '',
-        url: data.url ?? '',
-        type: data.type ?? 'raster',
+        url: url,
+        type: (rawType === 'raster' || rawType === 'raster-dem' || rawType === 'vector') ? rawType : 'raster',
         minzoom: data.minzoom ?? 0,
         maxzoom: data.maxzoom ?? 16,
-        tilesize: ('tilesize' in data ? data.tilesize : undefined) ?? 256,
+        tilesize: ('tileSize' in data ? data.tileSize : ('tilesize' in data ? data.tilesize : undefined)) ?? 256,
         attribution: ('attribution' in data ? data.attribution : undefined) ?? '',
         sharing_enabled: ('sharing_enabled' in data ? data.sharing_enabled : undefined) ?? true,
-        format: data.format ?? 'png',
+        format: (rawFormat === 'png' || rawFormat === 'jpeg' || rawFormat === 'mvt' || rawFormat === 'webp') ? rawFormat : 'png',
         bounds: ('bounds' in data && Array.isArray(data.bounds) ? data.bounds : null) ?? [-180, -90, 180, 90],
         center: ('center' in data && Array.isArray(data.center) ? data.center : null) ?? [0, 0],
         collection: ('collection' in data ? data.collection : undefined) ?? '',
@@ -219,7 +232,8 @@ export function normalizeEditing(data: Basemap | BasemapImport | BasemapListItem
         snapping_enabled: ('snapping_enabled' in data ? data.snapping_enabled : undefined) ?? false,
         snapping_layer: ('snapping_layer' in data ? data.snapping_layer : undefined) ?? '',
         styles: ('styles' in data && Array.isArray(data.styles) ? data.styles : null) ?? [],
-        tilejson: String(('tilejson' in data ? data.tilejson : undefined) ?? ''),
+        tilejson: (() => { const v = String(('tilejson' in data ? data.tilejson : undefined) ?? ''); return (v.startsWith('http://') || v.startsWith('https://')) ? v : ''; })(),
+        encoding: ('encoding' in data ? (data.encoding === 'mapbox' || data.encoding === 'terrarium' ? data.encoding : null) : null) ?? null,
     };
 }
 
