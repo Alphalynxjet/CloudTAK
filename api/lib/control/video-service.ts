@@ -329,20 +329,25 @@ export default class VideoServiceControl {
             url.port = c.config.srtAddress.replace(':', '');
 
             if (lease.stream_user && lease.read_user) {
+                // When Read/Write Security is on the stream is AES-encrypted; the
+                // passphrase (srtPublishPassphrase/srtReadPassphrase on the MediaMTX
+                // path) must be supplied by the client alongside the streamid creds.
+                const passphrase = lease.srt_pass ? `&passphrase=${lease.srt_pass}` : '';
+
                 if (populated === ProtocolPopulation.READ) {
                     protocols.srt = {
                         name: 'Secure Reliable Transport (SRT)',
-                        url: String(url) + `?streamid={{mode}}:${lease.path}:${lease.read_user}}:${lease.read_pass}`,
+                        url: String(url) + `?streamid={{mode}}:${lease.path}:${lease.read_user}:${lease.read_pass}${passphrase}`,
                     };
                 } else if (populated === ProtocolPopulation.WRITE) {
                     protocols.srt = {
                         name: 'Secure Reliable Transport (SRT)',
-                        url: String(url) + `?streamid={{mode}}:${lease.path}:${lease.stream_user}}:${lease.stream_pass}`,
+                        url: String(url) + `?streamid={{mode}}:${lease.path}:${lease.stream_user}:${lease.stream_pass}${passphrase}`,
                     };
                 } else {
                     protocols.srt = {
                         name: 'Secure Reliable Transport (SRT)',
-                        url: String(url) + `?streamid={{mode}}:${lease.path}:{{username}}:{{password}}`,
+                        url: String(url) + `?streamid={{mode}}:${lease.path}:{{username}}:{{password}}${lease.srt_pass ? '&passphrase={{passphrase}}' : ''}`,
                     };
                 }
             } else {
@@ -418,24 +423,28 @@ export default class VideoServiceControl {
 
         if (!video.configured) return;
 
-        if (secure && (!lease.stream_user || !lease.stream_pass || !lease.read_user || !lease.read_pass)) {
+        if (secure && (!lease.stream_user || !lease.stream_pass || !lease.read_user || !lease.read_pass || !lease.srt_pass)) {
             await this.config.models.VideoLease.commit(lease.id, {
                 stream_user: randomBytes(6).toString('hex'),
                 stream_pass: randomBytes(10).toString('hex'),
                 read_user: randomBytes(6).toString('hex'),
                 read_pass: randomBytes(10).toString('hex'),
+                // SRT passphrase must be 10-79 chars; 16 bytes hex = 32 chars.
+                srt_pass: randomBytes(16).toString('hex'),
             });
         } else if (secure && rotate) {
             await this.config.models.VideoLease.commit(lease.id, {
                 read_user: randomBytes(6).toString('hex'),
                 read_pass: randomBytes(10).toString('hex'),
+                srt_pass: randomBytes(16).toString('hex'),
             });
-        } else if (!secure && (lease.stream_user || lease.stream_pass || lease.read_user || lease.read_pass)) {
+        } else if (!secure && (lease.stream_user || lease.stream_pass || lease.read_user || lease.read_pass || lease.srt_pass)) {
             await this.config.models.VideoLease.commit(lease.id, {
                 stream_user: null,
                 stream_pass: null,
                 read_user: null,
                 read_pass: null,
+                srt_pass: null,
             });
         }
     }

@@ -14807,6 +14807,7 @@ export interface paths {
                                 stream_pass: string | null;
                                 read_user: string | null;
                                 read_pass: string | null;
+                                srt_pass: string | null;
                                 proxy: null | string;
                             }[];
                         };
@@ -14959,6 +14960,7 @@ export interface paths {
                                 stream_pass: string | null;
                                 read_user: string | null;
                                 read_pass: string | null;
+                                srt_pass: string | null;
                                 proxy: null | string;
                             };
                             protocols: {
@@ -15191,6 +15193,7 @@ export interface paths {
                                 stream_pass: string | null;
                                 read_user: string | null;
                                 read_pass: string | null;
+                                srt_pass: string | null;
                                 proxy: null | string;
                             };
                             protocols: {
@@ -15444,6 +15447,7 @@ export interface paths {
                                 stream_pass: string | null;
                                 read_user: string | null;
                                 read_pass: string | null;
+                                srt_pass: string | null;
                                 proxy: null | string;
                             };
                             protocols: {
@@ -43910,6 +43914,7 @@ export interface paths {
                                 stream_pass: string | null;
                                 read_user: string | null;
                                 read_pass: string | null;
+                                srt_pass: string | null;
                                 proxy: null | string;
                             }[];
                         };
@@ -44063,6 +44068,7 @@ export interface paths {
                             stream_pass: string | null;
                             read_user: string | null;
                             read_pass: string | null;
+                            srt_pass: string | null;
                             proxy: null | string;
                         };
                     };
@@ -44183,6 +44189,7 @@ export interface paths {
                             stream_pass: string | null;
                             read_user: string | null;
                             read_pass: string | null;
+                            srt_pass: string | null;
                             proxy: null | string;
                         };
                     };
@@ -44406,6 +44413,7 @@ export interface paths {
                             stream_pass: string | null;
                             read_user: string | null;
                             read_pass: string | null;
+                            srt_pass: string | null;
                             proxy: null | string;
                         };
                     };

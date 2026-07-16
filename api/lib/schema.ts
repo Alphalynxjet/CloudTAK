@@ -192,6 +192,10 @@ export const VideoLease = pgTable('video_lease', {
     read_user: text(),
     read_pass: text(),
 
+    // SRT AES encryption passphrase (generated with the Read/Write Security creds).
+    // Carried into MediaMTX srtPublishPassphrase/srtReadPassphrase by media-infra.
+    srt_pass: text(),
+
     // Optional Proxy Mode
     proxy: text().default(sql`null`),
 });

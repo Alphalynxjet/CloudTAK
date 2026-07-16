@@ -1,0 +1,1 @@
+ALTER TABLE "video_lease" ADD COLUMN "srt_pass" text;

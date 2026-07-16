@@ -164,21 +164,21 @@
                                 <TablerPillGroup
                                     v-model='mode'
                                     :options='[
-                                        { value: "read", label: "Read User" },
-                                        { value: "publish", label: "Write User" }
+                                        { value: "read", label: "Viewing User" },
+                                        { value: "publish", label: "Streaming User" }
                                     ]'
                                     padding='p-1'
                                 >
                                     <template #option='{ option }'>
                                         <IconBook2
                                             v-if='option.value === "read"'
-                                            v-tooltip='"Read User"'
+                                            v-tooltip='"Viewing User"'
                                             :size='24'
                                             stroke='1'
                                         />
                                         <IconPencil
                                             v-else
-                                            v-tooltip='"Write User"'
+                                            v-tooltip='"Streaming User"'
                                             :size='24'
                                             stroke='1'
                                         />
@@ -227,35 +227,44 @@
                     </template>
                     <template v-else>
                         <template v-if='secure && mode === "publish"'>
-                            <div class='col-md-6'>
+                            <div class='col-md-6 pt-2'>
                                 <CopyField
-                                    label='Write Username'
+                                    label='Streaming Username'
                                     :model-value='editLease.stream_user || ""'
                                 />
                             </div>
-                            <div class='col-md-6'>
+                            <div class='col-md-6 pt-2'>
                                 <CopyField
-                                    label='Write Password'
+                                    label='Streaming Password'
                                     :model-value='editLease.stream_pass || ""'
                                 />
                             </div>
                         </template>
                         <template v-else-if='secure && mode === "read"'>
-                            <div class='col-12 col-md-6'>
+                            <div class='col-12 col-md-6 pt-2'>
                                 <CopyField
-                                    label='Read Username'
+                                    label='Viewing Username'
                                     :model-value='editLease.read_user || ""'
                                 />
                             </div>
-                            <div class='col-12 col-md-6'>
+                            <div class='col-12 col-md-6 pt-2'>
                                 <CopyField
-                                    label='Read Password'
+                                    label='Viewing Password'
                                     :model-value='editLease.read_pass || ""'
                                 />
                             </div>
                         </template>
                         <div
-                            v-for='protocol in protocols'
+                            v-if='secure && editLease.srt_pass'
+                            class='col-12 pt-2'
+                        >
+                            <CopyField
+                                label='SRT Encryption Passphrase'
+                                :model-value='editLease.srt_pass'
+                            />
+                        </div>
+                        <div
+                            v-for='(protocol, key) in protocols'
                             class='pt-2'
                         >
                             <template v-if='protocol'>
@@ -269,6 +278,18 @@
                                     :label='protocol.name'
                                     :model-value='protocol.url.replace("{{mode}}", mode).replace("{{username}}", editLease.stream_user || "").replace("{{password}}", editLease.stream_pass || "")'
                                 />
+                                <!-- Unsecured SRT: split into explicit Streaming (publish) and
+                                     Viewing (read) URLs so the publish URL is discoverable. -->
+                                <template v-else-if='!secure && key === "srt"'>
+                                    <div class='mx-1'>
+                                        <strong>{{ protocol.name }} &mdash; Streaming</strong>
+                                    </div>
+                                    <CopyField :model-value='protocol.url.replace("{{mode}}", "publish")' />
+                                    <div class='mx-1 mt-2'>
+                                        <strong>{{ protocol.name }} &mdash; Viewing</strong>
+                                    </div>
+                                    <CopyField :model-value='protocol.url.replace("{{mode}}", "read")' />
+                                </template>
                                 <CopyField
                                     v-else
                                     :label='protocol.name'
@@ -321,7 +342,7 @@
                     </div>
                 </div>
             </div>
-            <div class='modal-footer'>
+            <div class='modal-footer btn-list'>
                 <button
                     v-if='protocols.rtsp && !expired(editLease.expiration)'
                     class='btn btn-secondary'
@@ -331,7 +352,18 @@
                         :size='20'
                         stroke='1'
                     />
-                    <span class='mx-2'>UAS Tool Wizard</span>
+                    <span class='mx-2'>UAS Tool Guide</span>
+                </button>
+                <button
+                    v-if='Object.keys(protocols).length'
+                    class='btn btn-secondary'
+                    @click='showProtocolInfo = true'
+                >
+                    <IconInfoCircle
+                        :size='20'
+                        stroke='1'
+                    />
+                    <span class='mx-2'>Video Protocol Info</span>
                 </button>
             </div>
         </template>
@@ -512,6 +544,17 @@
 
                 <div class='ms-auto btn-list'>
                     <button
+                        v-if='Object.keys(protocols).length'
+                        class='btn btn-secondary'
+                        @click='showProtocolInfo = true'
+                    >
+                        <IconInfoCircle
+                            :size='20'
+                            stroke='1'
+                        />
+                        <span class='mx-2'>Video Protocol Info</span>
+                    </button>
+                    <button
                         v-if='protocols.rtsp && !expired(editLease.expiration)'
                         class='btn btn-secondary'
                         @click='wizard = 1'
@@ -520,7 +563,7 @@
                             :size='20'
                             stroke='1'
                         />
-                        <span class='mx-2'>UAS Tool Wizard</span>
+                        <span class='mx-2'>UAS Tool Guide</span>
                     </button>
                     <button
                         v-if='!disabled'
@@ -576,6 +619,64 @@
                 </div>
             </div>
         </div>
+
+        <!-- Video protocol reference guide -->
+        <div
+            v-if='showProtocolInfo'
+            class='d-flex align-items-center justify-content-center'
+            style='position: fixed; inset: 0; z-index: 10500; background: rgba(0, 0, 0, 0.6);'
+            @click.self='showProtocolInfo = false'
+        >
+            <div
+                class='card mx-3'
+                style='max-width: 640px; max-height: 85vh; display: flex; flex-direction: column;'
+            >
+                <div class='card-header'>
+                    <IconInfoCircle
+                        :size='24'
+                        stroke='1'
+                    />
+                    <h3 class='card-title ms-2 mb-0'>
+                        Video Protocol Guide
+                    </h3>
+                </div>
+                <div
+                    class='card-body'
+                    style='overflow-y: auto;'
+                >
+                    <div
+                        v-for='(info, key) in protocolInfo'
+                        :key='key'
+                        class='mb-3'
+                    >
+                        <div class='mb-1'>
+                            <strong>{{ info.name }}</strong>
+                            <span class='text-secondary'>&mdash; {{ info.full }}</span>
+                        </div>
+                        <div class='text-secondary'>
+                            {{ info.body }}
+                        </div>
+                    </div>
+                    <hr class='my-2'>
+                    <div class='small'>
+                        <strong>Encryption:</strong>
+                        Only <strong>SRT</strong> can encrypt the media itself &mdash; enable
+                        <strong>Read/Write Security</strong> to generate a passphrase. For
+                        confidentiality on the other protocols, stream over the
+                        <strong>VPN</strong>.
+                    </div>
+                </div>
+                <div class='card-footer d-flex justify-content-center'>
+                    <button
+                        class='btn btn-primary'
+                        style='width: 120px;'
+                        @click='showProtocolInfo = false'
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
     </TablerModal>
 </template>
 
@@ -599,6 +700,7 @@ import {
     IconAffiliate,
     IconChevronRight,
     IconChevronLeft,
+    IconInfoCircle,
 } from '@tabler/icons-vue';
 import {
     TablerRefreshButton,
@@ -627,7 +729,32 @@ const loading = ref(true);
 const secure = ref(false);
 const disabled = ref(true);
 const wizard = ref(0);
+const showProtocolInfo = ref(false);
 const protocols = ref<VideoLeaseProtocols>({});
+
+// Per-protocol guidance shown in the Video Protocol Info modal.
+const protocolInfo: Record<string, { name: string; full: string; body: string }> = {
+    rtsp: {
+        name: 'RTSP',
+        full: 'Real-Time Streaming Protocol',
+        body: 'Low latency (~0.5–2s) and the native language of most IP cameras and ATAK. Transported over TCP here. Not encrypted on its own — enable Read/Write Security for auth and run it inside the VPN for confidentiality.',
+    },
+    rtmp: {
+        name: 'RTMP',
+        full: 'Real-Time Messaging Protocol',
+        body: 'The most compatible option for publishing from OBS and phone streaming apps. Higher latency (~2–5s). Always cleartext — credentials and video are unencrypted, so use the VPN for sensitive feeds.',
+    },
+    srt: {
+        name: 'SRT',
+        full: 'Secure Reliable Transport',
+        body: 'Best for unreliable / cellular uplinks: UDP with retransmission and jitter buffering. The only protocol here that can AES-encrypt the media itself — turn on Read/Write Security to generate a passphrase and encrypt end-to-end.',
+    },
+    hls: {
+        name: 'HLS',
+        full: 'HTTP Live Streaming',
+        body: 'Plays in any browser and the Video Wall, and passes through firewalls (just HTTPS). Viewing only — you cannot publish to it — and latency is high (~6–30s). Encrypted in transit via HTTPS.',
+    },
+};
 
 const channels = ref<string[]>([]);
 
@@ -664,6 +791,7 @@ const editLease = ref<{
     stream_pass: string | null
     read_user: string | null
     read_pass: string | null
+    srt_pass: string | null
 }>({
     name: '',
     channel: null,
@@ -675,7 +803,8 @@ const editLease = ref<{
     stream_user: '',
     stream_pass: '',
     read_user: '',
-    read_pass: ''
+    read_pass: '',
+    srt_pass: ''
 });
 
 // Must be registered AFTER editLease is declared — watch() reads the source

@@ -110,7 +110,11 @@
                 />
             </template>
             <template v-else>
-                <span v-text='text' />
+                <span
+                    class='d-block text-truncate'
+                    style='padding-right: 40px;'
+                    v-text='text'
+                />
 
                 <TablerDelete
                     v-if='props.deletable'

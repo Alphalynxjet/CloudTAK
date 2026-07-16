@@ -87,12 +87,20 @@ services:
             - CLOUDTAK_Config_media_url=${CLOUDTAK_Config_media_url}
         volumes:
             - .docker-media-recordings:/recordings
+            # takserver.host overrides: per-lease SRT AES encryption. media-infra runs
+            # its TypeScript at runtime (npx tsx), so we patch three files in place
+            # instead of maintaining a forked image. See media-infra-overrides/README.md
+            - ./media-infra-overrides/lib/types.ts:/lib/types.ts:ro
+            - ./media-infra-overrides/lib/payload.ts:/lib/payload.ts:ro
+            - ./media-infra-overrides/lib/persist.ts:/lib/persist.ts:ro
         ports:
             - "${MEDIA_PORT_API:-9997}:9997"
             - "${MEDIA_PORT_RTSP:-8554}:8554"
             - "${MEDIA_PORT_RTMP:-1935}:1935"
             - "${MEDIA_PORT_HLS:-8888}:8888"
-            - "${MEDIA_PORT_SRT:-8890}:8890"
+            # SRT is a UDP protocol — without /udp the published port is TCP-only and
+            # no SRT packet ever reaches MediaMTX.
+            - "${MEDIA_PORT_SRT:-8890}:8890/udp"
 
     postgis:
         image: postgis/postgis:17-3.4-alpine
